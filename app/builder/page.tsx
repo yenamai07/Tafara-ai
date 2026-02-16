@@ -10,18 +10,37 @@ interface AIConfig {
   model: string
 }
 
+interface UserAccount {
+  username: string
+  password: string
+  apiKey: string
+}
+
+// Preset accounts (you and TheBree) - they use the shared key
+const PRESET_ACCOUNTS = [
+  { username: 'yenamai07', password: 'pass6591' },
+  { username: 'TheBree', password: 'pass6591' }
+]
+
+// Your shared API key (for you and TheBree only)
+const SHARED_API_KEY = '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'
+
 export default function Builder() {
   const [apiKey, setApiKey] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [useOwnKey, setUseOwnKey] = useState(false)
+  const [showCreateAccount, setShowCreateAccount] = useState(false)
+  const [createUsername, setCreateUsername] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [createPasswordConfirm, setCreatePasswordConfirm] = useState('')
+  const [createApiKey, setCreateApiKey] = useState('')
   
   const [config, setConfig] = useState<AIConfig>({
     name: 'My AI Assistant',
     personality: 'helpful and friendly',
     instructions: 'You are a helpful AI assistant.',
-    model: 'openai/gpt-4o-mini'
+    model: 'meta-llama/llama-3.2-3b-instruct:free'
   })
 
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
@@ -41,22 +60,92 @@ export default function Builder() {
   }, [])
 
   const handleLogin = () => {
-    // This is where you'd validate against your shared key
-    // For now, this is a placeholder
-    if (username && password) {
-      // In production, validate credentials here
-      const sharedKey = 'YOUR_SHARED_OPENROUTER_KEY' // This would come from secure source
-      setApiKey(sharedKey)
-      setIsAuthenticated(true)
-      localStorage.setItem('tafara-apikey', sharedKey)
+    if (!username || !password) {
+      alert('Please enter username and password')
+      return
     }
+
+    // Check if it's a preset account (you or TheBree)
+    const isPresetAccount = PRESET_ACCOUNTS.some(
+      acc => acc.username === username && acc.password === password
+    )
+    
+    if (isPresetAccount) {
+      // Use shared API key
+      setApiKey(SHARED_API_KEY)
+      setIsAuthenticated(true)
+      localStorage.setItem('tafara-apikey', SHARED_API_KEY)
+      localStorage.setItem('tafara-username', username)
+      return
+    }
+
+    // Check user-created accounts
+    const storedAccounts = localStorage.getItem('tafara-accounts')
+    if (storedAccounts) {
+      const accounts: UserAccount[] = JSON.parse(storedAccounts)
+      const userAccount = accounts.find(
+        acc => acc.username === username && acc.password === password
+      )
+      
+      if (userAccount) {
+        // Use their own API key
+        setApiKey(userAccount.apiKey)
+        setIsAuthenticated(true)
+        localStorage.setItem('tafara-apikey', userAccount.apiKey)
+        localStorage.setItem('tafara-username', username)
+        return
+      }
+    }
+
+    alert('Invalid username or password')
   }
 
-  const handleOwnKey = () => {
-    if (apiKey) {
-      setIsAuthenticated(true)
-      localStorage.setItem('tafara-apikey', apiKey)
+  const handleCreateAccount = () => {
+    if (!createUsername || !createPassword || !createApiKey) {
+      alert('Please fill in all fields')
+      return
     }
+
+    if (createPassword !== createPasswordConfirm) {
+      alert('Passwords do not match')
+      return
+    }
+
+    if (!createApiKey.startsWith('sk-or-')) {
+      alert('Invalid OpenRouter API key format')
+      return
+    }
+
+    // Check if username already exists
+    const presetExists = PRESET_ACCOUNTS.some(acc => acc.username === createUsername)
+    if (presetExists) {
+      alert('Username already taken')
+      return
+    }
+
+    const storedAccounts = localStorage.getItem('tafara-accounts')
+    const accounts: UserAccount[] = storedAccounts ? JSON.parse(storedAccounts) : []
+    
+    const userExists = accounts.some(acc => acc.username === createUsername)
+    if (userExists) {
+      alert('Username already taken')
+      return
+    }
+
+    // Create new account
+    accounts.push({ 
+      username: createUsername, 
+      password: createPassword,
+      apiKey: createApiKey
+    })
+    localStorage.setItem('tafara-accounts', JSON.stringify(accounts))
+
+    alert('Account created successfully! You can now log in.')
+    setShowCreateAccount(false)
+    setCreateUsername('')
+    setCreatePassword('')
+    setCreatePasswordConfirm('')
+    setCreateApiKey('')
   }
 
   const saveConfig = () => {
@@ -77,6 +166,101 @@ export default function Builder() {
   }
 
   if (!isAuthenticated) {
+    if (showCreateAccount) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
+            <button 
+              onClick={() => setShowCreateAccount(false)}
+              className="text-tafara-cyan hover:text-tafara-teal mb-6 inline-block"
+            >
+              ← Back to Login
+            </button>
+            
+            <h1 className="text-3xl font-bold text-tafara-cyan mb-6">Create Account</h1>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={createUsername}
+                  onChange={(e) => setCreateUsername(e.target.value)}
+                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                  placeholder="Choose a username"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                  placeholder="Choose a password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={createPasswordConfirm}
+                  onChange={(e) => setCreatePasswordConfirm(e.target.value)}
+                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                  placeholder="Confirm your password"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Your OpenRouter API Key
+                </label>
+                <input
+                  type="password"
+                  value={createApiKey}
+                  onChange={(e) => setCreateApiKey(e.target.value)}
+                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                  placeholder="sk-or-..."
+                />
+                <div className="bg-tafara-teal/10 border border-tafara-teal/30 rounded-lg p-3 mt-3">
+                  <p className="text-sm text-gray-300 mb-2">
+                    <strong className="text-tafara-cyan">Don't have an API key?</strong>
+                  </p>
+                  <ol className="text-sm text-gray-300 space-y-1 ml-4 list-decimal">
+                    <li>Go to{' '}
+                      <a 
+                        href="https://openrouter.ai" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-tafara-cyan hover:text-tafara-teal underline"
+                      >
+                        OpenRouter.ai
+                      </a>
+                    </li>
+                    <li>Sign up for free</li>
+                    <li>Go to "Keys" section</li>
+                    <li>Create a new API key</li>
+                    <li>Copy and paste it here</li>
+                  </ol>
+                </div>
+              </div>
+              <button
+                onClick={handleCreateAccount}
+                className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
+              >
+                Create Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
@@ -84,84 +268,57 @@ export default function Builder() {
             ← Back to Home
           </Link>
           
-          <h1 className="text-3xl font-bold text-tafara-cyan mb-6">Get Started</h1>
+          <h1 className="text-3xl font-bold text-tafara-cyan mb-6">Login</h1>
           
           <div className="space-y-6">
             <div>
-              <button
-                onClick={() => setUseOwnKey(!useOwnKey)}
-                className="w-full py-3 px-4 bg-tafara-teal/20 border border-tafara-teal/50 rounded-lg text-white hover:bg-tafara-teal/30 transition-all"
-              >
-                {useOwnKey ? 'Use Shared Key Instead' : 'Use My Own API Key'}
-              </button>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                placeholder="Enter username"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
+                placeholder="Enter password"
+              />
+            </div>
+            <button
+              onClick={handleLogin}
+              className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
+            >
+              Login
+            </button>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-tafara-teal/30"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-tafara-blue/30 text-gray-400">or</span>
+              </div>
             </div>
 
-            {!useOwnKey ? (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                    placeholder="Enter username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                    placeholder="Enter password"
-                  />
-                </div>
-                <button
-                  onClick={handleLogin}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
-                >
-                  Login with Shared Key
-                </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    OpenRouter API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                    placeholder="sk-or-..."
-                  />
-                  <p className="text-sm text-gray-400 mt-2">
-                    Don't have one?{' '}
-                    <a 
-                      href="https://openrouter.ai/keys" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-tafara-cyan hover:text-tafara-teal"
-                    >
-                      Get your free API key here
-                    </a>
-                  </p>
-                </div>
-                <button
-                  onClick={handleOwnKey}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
-                >
-                  Continue with My Key
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setShowCreateAccount(true)}
+              className="w-full py-3 px-4 border-2 border-tafara-teal rounded-lg font-semibold text-tafara-teal hover:bg-tafara-teal/10 transition-all"
+            >
+              Create Account
+            </button>
           </div>
         </div>
       </div>
@@ -239,18 +396,23 @@ export default function Builder() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  AI Model
+                  AI Model (Free Models Only)
                 </label>
                 <select
                   value={config.model}
                   onChange={(e) => setConfig({...config, model: e.target.value})}
                   className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
                 >
-                  <option value="openai/gpt-4o-mini">GPT-4o Mini (Fast & Cheap)</option>
-                  <option value="openai/gpt-4o">GPT-4o (Balanced)</option>
-                  <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Smart)</option>
-                  <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
+                  <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 3B (Fast & Free)</option>
+                  <option value="meta-llama/llama-3.2-1b-instruct:free">Llama 3.2 1B (Very Fast)</option>
+                  <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (Experimental)</option>
+                  <option value="google/gemini-flash-1.5:free">Gemini Flash 1.5 (Reliable)</option>
+                  <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 405B (Powerful)</option>
+                  <option value="microsoft/phi-3-medium-128k-instruct:free">Phi-3 Medium (Smart)</option>
                 </select>
+                <p className="text-xs text-gray-400 mt-2">
+                  ✨ All models are completely free on OpenRouter!
+                </p>
               </div>
 
               <div className="flex gap-4">
