@@ -493,6 +493,8 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://tafara-ai.vercel.app',
+          'X-Title': 'Tafara.ai'
         },
         body: JSON.stringify({
           model: config.model,
@@ -507,7 +509,18 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
         })
       })
 
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('API Error:', errorData)
+        throw new Error(errorData.error?.message || 'API request failed')
+      }
+
       const data = await response.json()
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('Invalid API response format')
+      }
+
       const aiMessage = { 
         role: 'assistant', 
         content: data.choices[0].message.content 
@@ -515,9 +528,10 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
       setMessages(prev => [...prev, aiMessage])
     } catch (error) {
       console.error('Error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: 'Sorry, there was an error processing your request.' 
+        content: `Sorry, there was an error: ${errorMessage}. Please check your API key and try again.` 
       }])
     } finally {
       setIsLoading(false)
