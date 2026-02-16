@@ -45,17 +45,23 @@ export default function Builder() {
 
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
   const [showChat, setShowChat] = useState(false)
+  const [currentUser, setCurrentUser] = useState('')
 
-  // Load saved configurations from localStorage
+  // Load saved configurations from localStorage for current user
   useEffect(() => {
-    const saved = localStorage.getItem('tafara-configs')
-    if (saved) {
-      setSavedConfigs(JSON.parse(saved))
-    }
+    const savedUsername = localStorage.getItem('tafara-username')
     const savedApiKey = localStorage.getItem('tafara-apikey')
-    if (savedApiKey) {
+    
+    if (savedApiKey && savedUsername) {
       setApiKey(savedApiKey)
       setIsAuthenticated(true)
+      setCurrentUser(savedUsername)
+      
+      // Load configs for this specific user
+      const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
+      if (userConfigs) {
+        setSavedConfigs(JSON.parse(userConfigs))
+      }
     }
   }, [])
 
@@ -74,8 +80,15 @@ export default function Builder() {
       // Use shared API key
       setApiKey(SHARED_API_KEY)
       setIsAuthenticated(true)
+      setCurrentUser(username)
       localStorage.setItem('tafara-apikey', SHARED_API_KEY)
       localStorage.setItem('tafara-username', username)
+      
+      // Load configs for this user
+      const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
+      if (userConfigs) {
+        setSavedConfigs(JSON.parse(userConfigs))
+      }
       return
     }
 
@@ -91,8 +104,15 @@ export default function Builder() {
         // Use their own API key
         setApiKey(userAccount.apiKey)
         setIsAuthenticated(true)
+        setCurrentUser(username)
         localStorage.setItem('tafara-apikey', userAccount.apiKey)
         localStorage.setItem('tafara-username', username)
+        
+        // Load configs for this user
+        const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
+        if (userConfigs) {
+          setSavedConfigs(JSON.parse(userConfigs))
+        }
         return
       }
     }
@@ -151,7 +171,8 @@ export default function Builder() {
   const saveConfig = () => {
     const newConfigs = [...savedConfigs, config]
     setSavedConfigs(newConfigs)
-    localStorage.setItem('tafara-configs', JSON.stringify(newConfigs))
+    // Save configs with username prefix so each user has their own
+    localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(newConfigs))
     alert('Configuration saved!')
   }
 
@@ -162,7 +183,7 @@ export default function Builder() {
   const deleteConfig = (index: number) => {
     const newConfigs = savedConfigs.filter((_, i) => i !== index)
     setSavedConfigs(newConfigs)
-    localStorage.setItem('tafara-configs', JSON.stringify(newConfigs))
+    localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(newConfigs))
   }
 
   if (!isAuthenticated) {
@@ -340,7 +361,10 @@ export default function Builder() {
             onClick={() => {
               setIsAuthenticated(false)
               setApiKey('')
+              setCurrentUser('')
+              setSavedConfigs([])
               localStorage.removeItem('tafara-apikey')
+              localStorage.removeItem('tafara-username')
             }}
             className="text-gray-400 hover:text-red-400"
           >
