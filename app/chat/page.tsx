@@ -4,6 +4,9 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import ReactMarkdown from 'react-markdown'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface AIConfig {
   name: string
@@ -13,6 +16,82 @@ interface AIConfig {
   avatar: string
   background: string
   id: string
+}
+
+function MessageContent({ content, darkMode }: { content: string, darkMode: boolean }) {
+  return (
+    <ReactMarkdown
+      components={{
+        code({ node, inline, className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || '')
+          return !inline && match ? (
+            <div className="my-2 rounded-lg overflow-hidden text-sm">
+              <div className={`flex items-center justify-between px-4 py-1 text-xs ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-700 text-gray-300'}`}>
+                <span>{match[1]}</span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(String(children))}
+                  className="hover:text-white transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+              <SyntaxHighlighter
+                style={oneDark}
+                language={match[1]}
+                PreTag="div"
+                customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.85rem' }}
+                {...props}
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
+            </div>
+          ) : (
+            <code
+              className={`px-1.5 py-0.5 rounded text-sm font-mono ${
+                darkMode ? 'bg-gray-800 text-red-300' : 'bg-gray-700 text-teal-300'
+              }`}
+              {...props}
+            >
+              {children}
+            </code>
+          )
+        },
+        p({ children }) {
+          return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
+        },
+        ul({ children }) {
+          return <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
+        },
+        ol({ children }) {
+          return <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
+        },
+        li({ children }) {
+          return <li className="leading-relaxed">{children}</li>
+        },
+        h1({ children }) {
+          return <h1 className="text-xl font-bold mb-2 mt-3">{children}</h1>
+        },
+        h2({ children }) {
+          return <h2 className="text-lg font-bold mb-2 mt-3">{children}</h2>
+        },
+        h3({ children }) {
+          return <h3 className="text-base font-bold mb-1 mt-2">{children}</h3>
+        },
+        strong({ children }) {
+          return <strong className="font-bold">{children}</strong>
+        },
+        blockquote({ children }) {
+          return (
+            <blockquote className={`border-l-4 pl-3 my-2 italic ${darkMode ? 'border-red-500 text-red-300' : 'border-teal-500 text-gray-300'}`}>
+              {children}
+            </blockquote>
+          )
+        },
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }
 
 function ChatPageContent() {
@@ -100,19 +179,15 @@ function ChatPageContent() {
     setIsLoading(true)
 
     try {
-      // Get the current session token to send to our API route
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
         throw new Error('Not authenticated')
       }
 
-      // Call our own API route — never touches OpenRouter directly from the client
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMessage],
           config,
@@ -228,7 +303,7 @@ function ChatPageContent() {
       </button>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col p-6">
+      <div className="flex-1 flex flex-col p-4 md:p-6 min-w-0">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 ml-12">
           <div>
@@ -254,7 +329,7 @@ function ChatPageContent() {
 
         {/* Chat Messages */}
         <div
-          className={`flex-1 rounded-xl p-6 mb-4 overflow-y-auto bg-cover bg-center ${
+          className={`flex-1 rounded-xl p-4 md:p-6 mb-4 overflow-y-auto bg-cover bg-center ${
             darkMode
               ? 'bg-gray-900/50 border-2 border-red-500/30'
               : 'bg-tafara-blue/30 border-2 border-tafara-teal/30'
@@ -296,7 +371,7 @@ function ChatPageContent() {
                       )}
                     </div>
                   )}
-                  <div className={`max-w-[75%] px-4 py-3 rounded-lg ${
+                  <div className={`w-full max-w-[85%] md:max-w-[75%] px-4 py-3 rounded-lg overflow-hidden ${
                     msg.role === 'user'
                       ? darkMode
                         ? 'bg-red-500/30 border border-red-500 text-red-100'
@@ -305,7 +380,13 @@ function ChatPageContent() {
                         ? 'bg-black/70 border border-red-500/30 text-red-400'
                         : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
                   }`}>
-                    {msg.content}
+                    {msg.role === 'assistant' ? (
+                      <div className="prose prose-sm max-w-none overflow-x-auto">
+                        <MessageContent content={msg.content} darkMode={darkMode} />
+                      </div>
+                    ) : (
+                      msg.content
+                    )}
                   </div>
                 </div>
               ))}
