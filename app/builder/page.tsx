@@ -50,16 +50,19 @@ export default function Builder() {
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
   const [showChat, setShowChat] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
+  const [darkMode, setDarkMode] = useState(false)
 
   // Load saved configurations from localStorage for current user
   useEffect(() => {
     const savedUsername = localStorage.getItem('tafara-username')
     const savedApiKey = localStorage.getItem('tafara-apikey')
+    const savedDarkMode = localStorage.getItem(`tafara-darkmode-${savedUsername}`)
     
     if (savedApiKey && savedUsername) {
       setApiKey(savedApiKey)
       setIsAuthenticated(true)
       setCurrentUser(savedUsername)
+      setDarkMode(savedDarkMode === 'true')
       
       // Load configs for this specific user
       const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
@@ -188,6 +191,12 @@ export default function Builder() {
     const newConfigs = savedConfigs.filter((_, i) => i !== index)
     setSavedConfigs(newConfigs)
     localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(newConfigs))
+  }
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode
+    setDarkMode(newMode)
+    localStorage.setItem(`tafara-darkmode-${currentUser}`, String(newMode))
   }
 
   if (!isAuthenticated) {
@@ -351,37 +360,53 @@ export default function Builder() {
   }
 
   if (showChat) {
-    return <ChatInterface config={config} apiKey={apiKey} onBack={() => setShowChat(false)} />
+    return <ChatInterface config={config} apiKey={apiKey} onBack={() => setShowChat(false)} darkMode={darkMode} />
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <Link href="/" className="text-tafara-cyan hover:text-tafara-teal">
+          <Link href="/" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
             ← Back to Home
           </Link>
-          <button
-            onClick={() => {
-              setIsAuthenticated(false)
-              setApiKey('')
-              setCurrentUser('')
-              setSavedConfigs([])
-              localStorage.removeItem('tafara-apikey')
-              localStorage.removeItem('tafara-username')
-            }}
-            className="text-gray-400 hover:text-red-400"
-          >
-            Logout
-          </button>
+          <div className="flex gap-4 items-center">
+            <button
+              onClick={toggleDarkMode}
+              className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                darkMode 
+                  ? 'border-red-500 bg-red-500/20 text-red-400' 
+                  : 'border-tafara-teal bg-tafara-teal/20 text-tafara-cyan'
+              }`}
+            >
+              {darkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            </button>
+            <button
+              onClick={() => {
+                setIsAuthenticated(false)
+                setApiKey('')
+                setCurrentUser('')
+                setSavedConfigs([])
+                localStorage.removeItem('tafara-apikey')
+                localStorage.removeItem('tafara-username')
+              }}
+              className="text-gray-400 hover:text-red-400"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
-        <h1 className="text-4xl font-bold text-tafara-cyan mb-8">Build Your AI</h1>
+        <h1 className={`text-4xl font-bold mb-8 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Build Your AI</h1>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Configuration Panel */}
-          <div className="bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-6">Configuration</h2>
+          <div className={`backdrop-blur-sm rounded-xl p-8 ${
+            darkMode 
+              ? 'bg-gray-900/50 border border-red-500/30' 
+              : 'bg-tafara-blue/30 border border-tafara-teal/30'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-red-400' : 'text-white'}`}>Configuration</h2>
             
             <div className="space-y-6">
               <div>
@@ -646,7 +671,7 @@ export default function Builder() {
   )
 }
 
-function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: string, onBack: () => void }) {
+function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig, apiKey: string, onBack: () => void, darkMode: boolean }) {
   const [messages, setMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -711,25 +736,33 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <button onClick={onBack} className="text-tafara-cyan hover:text-tafara-teal">
+          <button onClick={onBack} className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
             ← Back to Builder
           </button>
-          <h1 className="text-2xl font-bold text-tafara-cyan">{config.name}</h1>
+          <h1 className={`text-2xl font-bold ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>{config.name}</h1>
         </div>
 
         <div 
-          className="bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-6 mb-4 bg-cover bg-center" 
+          className={`backdrop-blur-sm rounded-xl p-6 mb-4 bg-cover bg-center ${
+            darkMode 
+              ? 'bg-gray-900/50 border border-red-500/30' 
+              : 'bg-tafara-blue/30 border border-tafara-teal/30'
+          }`}
           style={{
             height: '60vh', 
             overflowY: 'auto',
-            backgroundImage: config.background ? `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})` : 'none'
+            backgroundImage: config.background 
+              ? darkMode 
+                ? `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${config.background})`
+                : `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})`
+              : 'none'
           }}
         >
           {messages.length === 0 ? (
-            <div className="text-center text-gray-400 mt-20">
+            <div className={`text-center mt-20 ${darkMode ? 'text-red-400' : 'text-gray-400'}`}>
               <div className="text-6xl mb-4">
                 {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
                   <img src={config.avatar} alt="AI Avatar" className="w-20 h-20 rounded-full mx-auto object-cover" />
@@ -749,7 +782,9 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
                       {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
                         <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-tafara-teal/20 flex items-center justify-center text-xl">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
+                          darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
+                        }`}>
                           {config.avatar}
                         </div>
                       )}
@@ -757,8 +792,12 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
                   )}
                   <div className={`max-w-[75%] px-4 py-3 rounded-lg ${
                     msg.role === 'user' 
-                      ? 'bg-tafara-teal text-tafara-dark' 
-                      : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
+                      ? darkMode 
+                        ? 'bg-red-500/30 border border-red-500 text-red-100'
+                        : 'bg-tafara-teal text-tafara-dark'
+                      : darkMode
+                        ? 'bg-black/70 border border-red-500/30 text-red-400'
+                        : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
                   }`}>
                     {msg.content}
                   </div>
@@ -770,12 +809,18 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
                     {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
                       <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-tafara-teal/20 flex items-center justify-center text-xl">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
+                        darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
+                      }`}>
                         {config.avatar}
                       </div>
                     )}
                   </div>
-                  <div className="bg-tafara-dark/70 border border-tafara-teal/30 px-4 py-3 rounded-lg text-white">
+                  <div className={`px-4 py-3 rounded-lg ${
+                    darkMode 
+                      ? 'bg-black/70 border border-red-500/30 text-red-400'
+                      : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
+                  }`}>
                     Thinking...
                   </div>
                 </div>
