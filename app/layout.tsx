@@ -6,9 +6,13 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Tafara.ai - Free & Easy AI for All',
-  description: 'Build your own AI without coding. Private, always free, and accessible to everyone.',
+  description: 'Build your own AI without coding. Private, free, and accessible to everyone.',
   verification: {
     google: 'nj6K2HUiFvac22HiYCUWweH7S2jVwSka5BHNElZTf1o',
+  },
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
   },
 }
 
