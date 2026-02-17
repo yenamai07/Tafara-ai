@@ -33,6 +33,13 @@ export async function POST(request: Request) {
       ? process.env.SHARED_API_KEY
       : profile?.api_key
 
+    console.log('API key info:', {
+      isPresetAccount: profile?.is_preset_account,
+      hasSharedKey: !!process.env.SHARED_API_KEY,
+      hasUserKey: !!profile?.api_key,
+      keyPrefix: apiKey?.substring(0, 10)
+    })
+
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key found' }, { status: 400 })
     }
@@ -60,7 +67,14 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json()
-      return NextResponse.json({ error: errorData.error?.message || 'API request failed' }, { status: response.status })
+      console.error('OpenRouter error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      })
+      return NextResponse.json({ 
+        error: errorData.error?.message || `OpenRouter error: ${response.status} ${response.statusText}` 
+      }, { status: response.status })
     }
 
     const data = await response.json()
