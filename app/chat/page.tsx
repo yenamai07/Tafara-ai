@@ -342,7 +342,7 @@ function ChatPageContent() {
 
             <div className={`
               ${isMobile ? 'fixed top-0 left-0 h-full z-40 pt-16' : 'relative'}
-              w-20 flex flex-col items-center py-6 gap-6 border-r flex-shrink-0
+              w-20 flex flex-col items-center py-6 gap-6 border-r flex-shrink-0 sticky top-0 h-screen
               ${darkMode ? 'bg-gray-900 border-red-500/30' : 'bg-tafara-blue border-tafara-teal/30'}
             `}>
               <Link
