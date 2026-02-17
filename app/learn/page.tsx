@@ -16,19 +16,15 @@ export default function Learn() {
           <Section title="Getting Started">
             <div className="space-y-4">
               <Step 
-                title="1. Choose Your API Key Option"
-                description="You have two choices:"
+                title="1. Get Your API Key"
+                description="To use Tafara.ai, you'll need a free OpenRouter API key. Don't worry - it's completely free and takes just 2 minutes!"
               />
-              <ul className="list-disc list-inside text-gray-300 ml-6 space-y-2">
-                <li><strong className="text-tafara-cyan">Shared Key:</strong> If you have login credentials, you can use our shared OpenRouter key</li>
-                <li><strong className="text-tafara-cyan">Your Own Key:</strong> Get a free API key from OpenRouter and use your own</li>
-              </ul>
             </div>
           </Section>
 
-          <Section title="Getting Your Own API Key">
+          <Section title="How to Get Your Free API Key">
             <div className="space-y-4 text-gray-300">
-              <p>If you want to use your own OpenRouter API key (recommended for unlimited use):</p>
+              <p>Getting your free OpenRouter API key is easy:</p>
               <ol className="list-decimal list-inside space-y-3 ml-4">
                 <li>Go to <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-tafara-cyan hover:text-tafara-teal underline">OpenRouter.ai</a></li>
                 <li>Sign up for a free account (you can use Google, GitHub, or email)</li>
