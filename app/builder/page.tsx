@@ -54,15 +54,19 @@ export default function Builder() {
 
   // Load saved configurations from localStorage for current user
   useEffect(() => {
+    // Load dark mode first (even before login)
+    const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
+    if (savedDarkMode) {
+      setDarkMode(savedDarkMode === 'true')
+    }
+
     const savedUsername = localStorage.getItem('tafara-username')
     const savedApiKey = localStorage.getItem('tafara-apikey')
-    const savedDarkMode = localStorage.getItem(`tafara-darkmode-${savedUsername}`)
     
     if (savedApiKey && savedUsername) {
       setApiKey(savedApiKey)
       setIsAuthenticated(true)
       setCurrentUser(savedUsername)
-      setDarkMode(savedDarkMode === 'true')
       
       // Load configs for this specific user
       const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
@@ -196,22 +200,34 @@ export default function Builder() {
   const toggleDarkMode = () => {
     const newMode = !darkMode
     setDarkMode(newMode)
-    localStorage.setItem(`tafara-darkmode-${currentUser}`, String(newMode))
+    localStorage.setItem('tafara-darkmode-global', String(newMode))
   }
 
   if (!isAuthenticated) {
     if (showCreateAccount) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
-            <button 
-              onClick={() => setShowCreateAccount(false)}
-              className="text-tafara-cyan hover:text-tafara-teal mb-6 inline-block"
-            >
-              ← Back to Login
-            </button>
+        <div className={`min-h-screen flex items-center justify-center p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+          <div className={`max-w-md w-full backdrop-blur-sm rounded-xl p-8 ${
+            darkMode 
+              ? 'bg-gray-900/50 border border-red-500/30' 
+              : 'bg-tafara-blue/30 border border-tafara-teal/30'
+          }`}>
+            <div className="flex justify-between items-center mb-6">
+              <button 
+                onClick={() => setShowCreateAccount(false)}
+                className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}
+              >
+                ← Back to Login
+              </button>
+              <button
+                onClick={toggleDarkMode}
+                className="text-2xl"
+              >
+                {darkMode ? '🌙' : '☀️'}
+              </button>
+            </div>
             
-            <h1 className="text-3xl font-bold text-tafara-cyan mb-6">Create Account</h1>
+            <h1 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Create Account</h1>
             
             <div className="space-y-6">
               <div>
@@ -296,13 +312,25 @@ export default function Builder() {
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
-          <Link href="/" className="text-tafara-cyan hover:text-tafara-teal mb-6 inline-block">
-            ← Back to Home
-          </Link>
+      <div className={`min-h-screen flex items-center justify-center p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+        <div className={`max-w-md w-full backdrop-blur-sm rounded-xl p-8 ${
+          darkMode 
+            ? 'bg-gray-900/50 border border-red-500/30' 
+            : 'bg-tafara-blue/30 border border-tafara-teal/30'
+        }`}>
+          <div className="flex justify-between items-center mb-6">
+            <Link href="/" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
+              ← Back to Home
+            </Link>
+            <button
+              onClick={toggleDarkMode}
+              className="text-2xl"
+            >
+              {darkMode ? '🌙' : '☀️'}
+            </button>
+          </div>
           
-          <h1 className="text-3xl font-bold text-tafara-cyan mb-6">Login</h1>
+          <h1 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Login</h1>
           
           <div className="space-y-6">
             <div>
