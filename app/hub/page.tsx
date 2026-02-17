@@ -29,16 +29,14 @@ export default function Hub() {
   const [selectedCategory, setSelectedCategory] = useState('all')
 
   useEffect(() => {
-    // Load dark mode
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
     if (savedDarkMode) {
       setDarkMode(savedDarkMode === 'true')
     }
 
-    // Check authentication
     const savedUsername = localStorage.getItem('tafara-username')
     const savedApiKey = localStorage.getItem('tafara-apikey')
-    
+
     if (!savedApiKey || !savedUsername) {
       router.push('/builder')
       return
@@ -46,7 +44,6 @@ export default function Hub() {
 
     setCurrentUser(savedUsername)
 
-    // Load user's AIs
     const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
     if (userConfigs) {
       const configs = JSON.parse(userConfigs)
@@ -56,7 +53,6 @@ export default function Hub() {
       })))
     }
 
-    // Load community AIs from Supabase
     loadCommunityAIs()
   }, [router])
 
@@ -97,16 +93,16 @@ export default function Hub() {
     localStorage.setItem('tafara-darkmode-global', String(newMode))
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     localStorage.removeItem('tafara-apikey')
     localStorage.removeItem('tafara-username')
-    router.push('/builder')
+    router.push('/login')
   }
 
   const deleteMyAI = (index: number) => {
     const newAIs = myAIs.filter((_, i) => i !== index)
     setMyAIs(newAIs)
-    // Remove the id property before saving
     const configsToSave = newAIs.map(({ id, ...config }) => config)
     localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(configsToSave))
   }
@@ -134,7 +130,7 @@ export default function Hub() {
       }
 
       alert('AI published successfully!')
-      loadCommunityAIs() // Reload community AIs
+      loadCommunityAIs()
     } catch (error) {
       console.error('Error:', error)
       alert('Failed to publish AI')
@@ -142,15 +138,12 @@ export default function Hub() {
   }
 
   const deletePublicAI = async (aiId: string) => {
-    // Only yenamai07 and TheBree can delete
     if (currentUser !== 'yenamai07' && currentUser !== 'TheBree') {
       alert('Only moderators can delete public AIs')
       return
     }
 
-    if (!confirm('Are you sure you want to delete this public AI?')) {
-      return
-    }
+    if (!confirm('Are you sure you want to delete this public AI?')) return
 
     try {
       const { error } = await supabase
@@ -165,7 +158,7 @@ export default function Hub() {
       }
 
       alert('AI deleted successfully!')
-      loadCommunityAIs() // Reload community AIs
+      loadCommunityAIs()
     } catch (error) {
       console.error('Error:', error)
       alert('Failed to delete AI')
@@ -198,8 +191,8 @@ export default function Hub() {
             <button
               onClick={toggleDarkMode}
               className={`px-4 py-2 rounded-lg border-2 transition-all ${
-                darkMode 
-                  ? 'border-red-500 bg-red-500/20 text-red-400' 
+                darkMode
+                  ? 'border-red-500 bg-red-500/20 text-red-400'
                   : 'border-tafara-teal bg-tafara-teal/20 text-tafara-cyan'
               }`}
             >
@@ -207,7 +200,7 @@ export default function Hub() {
             </button>
             <button
               onClick={handleLogout}
-              className="text-gray-400 hover:text-red-400"
+              className="text-gray-400 hover:text-red-400 transition-colors"
             >
               Logout
             </button>
@@ -337,18 +330,18 @@ export default function Hub() {
   )
 }
 
-function AICard({ 
-  ai, 
-  darkMode, 
-  onDelete, 
-  onEdit, 
+function AICard({
+  ai,
+  darkMode,
+  onDelete,
+  onEdit,
   onChat,
   onPublish,
   showDelete,
   showPublish,
   currentUser,
   isModerator
-}: { 
+}: {
   ai: AIConfig
   darkMode: boolean
   onDelete?: () => void
@@ -403,7 +396,7 @@ function AICard({
           {ai.personality}
         </p>
 
-        {/* Creator (show for community AIs) */}
+        {/* Creator */}
         {ai.creatorUsername && (
           <p className={`text-xs text-center mb-4 ${darkMode ? 'text-red-400/50' : 'text-gray-500'}`}>
             {isModerator && ai.isAnonymous ? (
@@ -466,7 +459,7 @@ function AICard({
       {/* Publish Dialog */}
       {showPublishDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50" onClick={() => setShowPublishDialog(false)}>
-          <div 
+          <div
             className={`max-w-md w-full rounded-xl p-6 ${
               darkMode ? 'bg-gray-900 border-2 border-red-500' : 'bg-tafara-blue border-2 border-tafara-teal'
             }`}
