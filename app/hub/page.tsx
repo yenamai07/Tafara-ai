@@ -72,7 +72,7 @@ export default function Hub() {
         username = profile.username
       }
 
-      setCurrentUser(username)
+      setCurrentUser(username ?? '')
 
       // Load user's AIs from localStorage
       const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
