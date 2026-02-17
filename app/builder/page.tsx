@@ -8,6 +8,8 @@ interface AIConfig {
   personality: string
   instructions: string
   model: string
+  avatar: string // URL or preset icon
+  background: string // Background image URL or color
 }
 
 interface UserAccount {
@@ -40,7 +42,9 @@ export default function Builder() {
     name: 'My AI Assistant',
     personality: 'helpful and friendly',
     instructions: 'You are a helpful AI assistant.',
-    model: 'openrouter/aurora-alpha'
+    model: 'openrouter/aurora-alpha',
+    avatar: '🤖',
+    background: ''
   })
 
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
@@ -395,6 +399,90 @@ export default function Builder() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
+                  AI Avatar
+                </label>
+                <div className="space-y-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {['🤖', '🧠', '⭐', '🎨', '💡', '🚀', '🔮', '👾', '🦾', '💬'].map(emoji => (
+                      <button
+                        key={emoji}
+                        onClick={() => setConfig({...config, avatar: emoji})}
+                        className={`text-3xl p-3 rounded-lg border-2 transition-all ${
+                          config.avatar === emoji 
+                            ? 'border-tafara-teal bg-tafara-teal/20' 
+                            : 'border-tafara-teal/30 hover:border-tafara-teal/50'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Or upload your own:</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onload = (event) => {
+                            setConfig({...config, avatar: event.target?.result as string})
+                          }
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                      className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30"
+                    />
+                  </div>
+                  {config.avatar && !['🤖', '🧠', '⭐', '🎨', '💡', '🚀', '🔮', '👾', '🦾', '💬'].includes(config.avatar) && (
+                    <div className="flex items-center gap-2">
+                      <img src={config.avatar} alt="Avatar preview" className="w-12 h-12 rounded-full object-cover" />
+                      <span className="text-xs text-gray-400">Custom avatar uploaded</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chat Background
+                </label>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = (event) => {
+                          setConfig({...config, background: event.target?.result as string})
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                    className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30"
+                  />
+                  {config.background && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div 
+                        className="w-20 h-12 rounded border border-tafara-teal/30 bg-cover bg-center" 
+                        style={{backgroundImage: `url(${config.background})`}}
+                      ></div>
+                      <button
+                        onClick={() => setConfig({...config, background: ''})}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Personality
                 </label>
                 <input
@@ -632,28 +720,62 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
           <h1 className="text-2xl font-bold text-tafara-cyan">{config.name}</h1>
         </div>
 
-        <div className="bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-6 mb-4" style={{height: '60vh', overflowY: 'auto'}}>
+        <div 
+          className="bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-6 mb-4 bg-cover bg-center" 
+          style={{
+            height: '60vh', 
+            overflowY: 'auto',
+            backgroundImage: config.background ? `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})` : 'none'
+          }}
+        >
           {messages.length === 0 ? (
             <div className="text-center text-gray-400 mt-20">
+              <div className="text-6xl mb-4">
+                {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
+                  <img src={config.avatar} alt="AI Avatar" className="w-20 h-20 rounded-full mx-auto object-cover" />
+                ) : (
+                  <span>{config.avatar}</span>
+                )}
+              </div>
               <p className="text-xl mb-2">Start chatting with {config.name}!</p>
               <p className="text-sm">Your AI is ready to help.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] px-4 py-3 rounded-lg ${
+                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="flex-shrink-0">
+                      {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
+                        <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-tafara-teal/20 flex items-center justify-center text-xl">
+                          {config.avatar}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className={`max-w-[75%] px-4 py-3 rounded-lg ${
                     msg.role === 'user' 
                       ? 'bg-tafara-teal text-tafara-dark' 
-                      : 'bg-tafara-dark/50 border border-tafara-teal/30 text-white'
+                      : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
                   }`}>
                     {msg.content}
                   </div>
                 </div>
               ))}
               {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-tafara-dark/50 border border-tafara-teal/30 px-4 py-3 rounded-lg text-white">
+                <div className="flex gap-3 justify-start">
+                  <div className="flex-shrink-0">
+                    {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
+                      <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-tafara-teal/20 flex items-center justify-center text-xl">
+                        {config.avatar}
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-tafara-dark/70 border border-tafara-teal/30 px-4 py-3 rounded-lg text-white">
                     Thinking...
                   </div>
                 </div>
