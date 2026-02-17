@@ -24,17 +24,15 @@ export default function LoginPage() {
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
     if (savedDarkMode) setDarkMode(savedDarkMode === 'true')
 
-    // If already logged in, restore username from Supabase and redirect
+    // Only redirect if session is verified
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
+      if (session?.user?.email_confirmed_at) {
         await restoreSessionData(session)
         router.push('/hub')
       }
     })
   }, [router])
 
-  // Restores username and apikey into localStorage from Supabase session
-  // so everything works on any device without manual re-login
   const restoreSessionData = async (session: any) => {
     const { data: profile } = await supabase
       .from('user_profiles')
@@ -46,7 +44,6 @@ export default function LoginPage() {
       localStorage.setItem('tafara-username', profile.username)
 
       if (profile.is_preset_account) {
-        // Mod accounts — fetch shared key from API route
         const res = await fetch('/api/shared-key', {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         })
@@ -98,12 +95,25 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
-        alert('Invalid username/email or password')
+        // Give a helpful message specifically for unverified emails
+        if (error.message.toLowerCase().includes('email not confirmed')) {
+          alert('Please check your email and click the verification link before logging in.')
+        } else {
+          alert('Invalid username/email or password')
+        }
         setLoading(false)
         return
       }
 
       if (data.session) {
+        // Double-check email is verified before letting them in
+        if (!data.session.user.email_confirmed_at) {
+          alert('Please verify your email before logging in. Check your inbox for a verification link.')
+          await supabase.auth.signOut()
+          setLoading(false)
+          return
+        }
+
         await restoreSessionData(data.session)
         router.push('/hub')
       }
@@ -139,6 +149,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      // Check username isn't taken
       const { data: existingUsername } = await supabase
         .from('user_profiles')
         .select('username')
@@ -163,7 +174,8 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        await supabase.from('user_profiles').insert([{
+        // Save profile — if this fails the user is stuck, so handle it
+        const { error: profileError } = await supabase.from('user_profiles').insert([{
           id: data.user.id,
           username: createUsername,
           email: createEmail,
@@ -171,7 +183,16 @@ export default function LoginPage() {
           is_preset_account: false
         }])
 
-        alert('Account created successfully! Please check your email to verify your account, then log in.')
+        if (profileError) {
+          console.error('Profile insert error:', profileError)
+          // Clean up the auth account so they can try again
+          await supabase.auth.signOut()
+          alert('Something went wrong saving your profile. Please try signing up again.')
+          setLoading(false)
+          return
+        }
+
+        alert('Account created! Please check your email and click the verification link, then come back and log in.')
         setShowCreateAccount(false)
         setCreateUsername('')
         setCreateEmail('')
