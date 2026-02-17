@@ -68,17 +68,18 @@ export default function Learn() {
             </div>
           </Section>
 
-          <Section title="Privacy & Data">
+          <Section title="Privacy & Security">
             <div className="space-y-4 text-gray-300">
-              <p>Tafara.ai is built with privacy first:</p>
+              <p>Tafara.ai is built with security first:</p>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li>All your AI configurations are stored locally on YOUR device</li>
-                <li>We don't have servers collecting your data</li>
-                <li>Your conversations go directly to the AI provider (OpenRouter)</li>
-                <li>We never see or store your API keys or conversations</li>
+                <li>Passwords are encrypted and stored securely in our database</li>
+                <li>API keys are stored server-side and never exposed to the browser</li>
+                <li>All AI requests are handled through our secure server</li>
+                <li>Your account works across all your devices</li>
+                <li>We use industry-standard Supabase authentication</li>
               </ul>
               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mt-4">
-                <p className="text-sm text-yellow-200">⚠️ <strong>Note:</strong> If you clear your browser data, your saved AI configurations will be deleted. Make sure to note down important configurations!</p>
+                <p className="text-sm text-yellow-200">⚠️ <strong>Note:</strong> Your saved AI configurations are stored in your account. If you delete your account, your configurations will be lost. Make sure to note down important ones!</p>
               </div>
             </div>
           </Section>
