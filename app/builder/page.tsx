@@ -392,8 +392,8 @@ export default function Builder() {
     <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <Link href="/" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
-            ← Back to Home
+          <Link href="/hub" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
+            ← Back to Hub
           </Link>
           <div className="flex gap-4 items-center">
             <button
