@@ -422,23 +422,79 @@ export default function Builder() {
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   AI Model
                 </label>
-                <select
-                  value={config.model}
-                  onChange={(e) => setConfig({...config, model: e.target.value})}
-                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                >
-                  <option value="openrouter/aurora-alpha">Aurora Alpha</option>
-                  <option value="stepfun/step-3.5-flash:free">Step 3.5 Flash</option>
-                  <option value="arcee-ai/trinity-large-preview:free">Trinity Large Preview</option>
-                  <option value="liquid/lfm-2.5-1.2b-thinking:free">LFM 2.5 1.2B Thinking</option>
-                  <option value="liquid/lfm-2.5-1.2b-instruct:free">LFM 2.5 1.2B Instruct</option>
-                  <option value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 Nano 30B</option>
-                  <option value="arcee-ai/trinity-mini:free">Trinity Mini</option>
-                  <option value="nvidia/nemotron-nano-12b-v2-vl:free">Nemotron Nano 12B V2 VL</option>
-                  <option value="qwen/qwen3-vl-30b-a3b-thinking">Qwen3 VL 30B Thinking</option>
-                  <option value="qwen/qwen3-vl-235b-a22b-thinking">Qwen3 VL 235B Thinking</option>
-                </select>
-                <p className="text-xs text-gray-400 mt-2">
+                <div className="space-y-3">
+                  <ModelOption
+                    value="openrouter/aurora-alpha"
+                    name="Aurora Alpha"
+                    description="Advanced reasoning and creative tasks"
+                    selected={config.model === "openrouter/aurora-alpha"}
+                    onClick={() => setConfig({...config, model: "openrouter/aurora-alpha"})}
+                  />
+                  <ModelOption
+                    value="stepfun/step-3.5-flash:free"
+                    name="Step 3.5 Flash"
+                    description="Lightning fast responses, great for quick tasks"
+                    selected={config.model === "stepfun/step-3.5-flash:free"}
+                    onClick={() => setConfig({...config, model: "stepfun/step-3.5-flash:free"})}
+                  />
+                  <ModelOption
+                    value="arcee-ai/trinity-large-preview:free"
+                    name="Trinity Large Preview"
+                    description="Powerful model for complex reasoning"
+                    selected={config.model === "arcee-ai/trinity-large-preview:free"}
+                    onClick={() => setConfig({...config, model: "arcee-ai/trinity-large-preview:free"})}
+                  />
+                  <ModelOption
+                    value="liquid/lfm-2.5-1.2b-thinking:free"
+                    name="LFM 2.5 Thinking"
+                    description="Advanced thinking and problem-solving"
+                    selected={config.model === "liquid/lfm-2.5-1.2b-thinking:free"}
+                    onClick={() => setConfig({...config, model: "liquid/lfm-2.5-1.2b-thinking:free"})}
+                  />
+                  <ModelOption
+                    value="liquid/lfm-2.5-1.2b-instruct:free"
+                    name="LFM 2.5 Instruct"
+                    description="Great for following detailed instructions"
+                    selected={config.model === "liquid/lfm-2.5-1.2b-instruct:free"}
+                    onClick={() => setConfig({...config, model: "liquid/lfm-2.5-1.2b-instruct:free"})}
+                  />
+                  <ModelOption
+                    value="nvidia/nemotron-3-nano-30b-a3b:free"
+                    name="Nemotron 3 Nano 30B"
+                    description="NVIDIA's efficient powerhouse model"
+                    selected={config.model === "nvidia/nemotron-3-nano-30b-a3b:free"}
+                    onClick={() => setConfig({...config, model: "nvidia/nemotron-3-nano-30b-a3b:free"})}
+                  />
+                  <ModelOption
+                    value="arcee-ai/trinity-mini:free"
+                    name="Trinity Mini"
+                    description="Compact and fast for everyday tasks"
+                    selected={config.model === "arcee-ai/trinity-mini:free"}
+                    onClick={() => setConfig({...config, model: "arcee-ai/trinity-mini:free"})}
+                  />
+                  <ModelOption
+                    value="nvidia/nemotron-nano-12b-v2-vl:free"
+                    name="Nemotron Nano 12B VL"
+                    description="Visual understanding and image analysis"
+                    selected={config.model === "nvidia/nemotron-nano-12b-v2-vl:free"}
+                    onClick={() => setConfig({...config, model: "nvidia/nemotron-nano-12b-v2-vl:free"})}
+                  />
+                  <ModelOption
+                    value="qwen/qwen3-vl-30b-a3b-thinking"
+                    name="Qwen3 VL 30B Thinking"
+                    description="Visual + reasoning for complex analysis"
+                    selected={config.model === "qwen/qwen3-vl-30b-a3b-thinking"}
+                    onClick={() => setConfig({...config, model: "qwen/qwen3-vl-30b-a3b-thinking"})}
+                  />
+                  <ModelOption
+                    value="qwen/qwen3-vl-235b-a22b-thinking"
+                    name="Qwen3 VL 235B Thinking"
+                    description="Most powerful visual reasoning model"
+                    selected={config.model === "qwen/qwen3-vl-235b-a22b-thinking"}
+                    onClick={() => setConfig({...config, model: "qwen/qwen3-vl-235b-a22b-thinking"})}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-3">
                   ✨ Hand-picked quality models
                 </p>
               </div>
@@ -626,5 +682,27 @@ function ChatInterface({ config, apiKey, onBack }: { config: AIConfig, apiKey: s
         </div>
       </div>
     </div>
+  )
+}
+
+function ModelOption({ value, name, description, selected, onClick }: { 
+  value: string
+  name: string
+  description: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
+        selected 
+          ? 'border-tafara-teal bg-tafara-teal/20' 
+          : 'border-tafara-teal/30 bg-tafara-dark/30 hover:border-tafara-teal/50 hover:bg-tafara-dark/50'
+      }`}
+    >
+      <div className="font-semibold text-base text-white mb-1">{name}</div>
+      <div className="text-xs text-gray-400">{description}</div>
+    </button>
   )
 }
