@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 interface AIConfig {
   name: string
@@ -12,6 +13,8 @@ interface AIConfig {
   avatar: string
   background: string
   id: string
+  category?: string
+  isPublished?: boolean
 }
 
 export default function Hub() {
@@ -51,29 +54,38 @@ export default function Hub() {
       })))
     }
 
-    // TODO: Load community AIs from backend
-    // For now, using placeholder data
-    setCommunityAIs([
-      {
-        id: 'community-1',
-        name: 'Study Buddy',
-        personality: 'encouraging and patient',
-        instructions: 'Help students learn and understand complex topics',
-        model: 'openrouter/aurora-alpha',
-        avatar: '📚',
-        background: ''
-      },
-      {
-        id: 'community-2',
-        name: 'Creative Writer',
-        personality: 'imaginative and inspiring',
-        instructions: 'Help with creative writing, brainstorming, and storytelling',
-        model: 'openrouter/aurora-alpha',
-        avatar: '✍️',
-        background: ''
-      }
-    ])
+    // Load community AIs from Supabase
+    loadCommunityAIs()
   }, [router])
+
+  const loadCommunityAIs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('public_ais')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error loading community AIs:', error)
+        return
+      }
+
+      if (data) {
+        setCommunityAIs(data.map(ai => ({
+          id: ai.id,
+          name: ai.name,
+          personality: ai.personality,
+          instructions: ai.instructions,
+          model: ai.model,
+          avatar: ai.avatar,
+          background: ai.background || '',
+          category: ai.category || 'general'
+        })))
+      }
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
 
   const toggleDarkMode = () => {
     const newMode = !darkMode
@@ -95,12 +107,73 @@ export default function Hub() {
     localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(configsToSave))
   }
 
-  const categories = ['all', 'study', 'creative', 'productivity', 'fun', 'coding']
+  const publishAI = async (ai: AIConfig, isAnonymous: boolean, category: string) => {
+    try {
+      const { error } = await supabase
+        .from('public_ais')
+        .insert([{
+          name: ai.name,
+          personality: ai.personality,
+          instructions: ai.instructions,
+          model: ai.model,
+          avatar: ai.avatar,
+          background: ai.background || '',
+          creator_username: isAnonymous ? 'Anonymous' : currentUser,
+          is_anonymous: isAnonymous,
+          category: category
+        }])
+
+      if (error) {
+        console.error('Error publishing AI:', error)
+        alert('Failed to publish AI')
+        return
+      }
+
+      alert('AI published successfully!')
+      loadCommunityAIs() // Reload community AIs
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Failed to publish AI')
+    }
+  }
+
+  const deletePublicAI = async (aiId: string) => {
+    // Only yenamai07 and TheBree can delete
+    if (currentUser !== 'yenamai07' && currentUser !== 'TheBree') {
+      alert('Only moderators can delete public AIs')
+      return
+    }
+
+    if (!confirm('Are you sure you want to delete this public AI?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('public_ais')
+        .delete()
+        .eq('id', aiId)
+
+      if (error) {
+        console.error('Error deleting AI:', error)
+        alert('Failed to delete AI')
+        return
+      }
+
+      alert('AI deleted successfully!')
+      loadCommunityAIs() // Reload community AIs
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Failed to delete AI')
+    }
+  }
+
+  const categories = ['all', 'study', 'creative', 'productivity', 'fun', 'coding', 'general']
 
   const filteredCommunityAIs = communityAIs.filter(ai => {
     const matchesSearch = ai.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          ai.personality.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === 'all' // TODO: Add category field to AIs
+    const matchesCategory = selectedCategory === 'all' || ai.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
@@ -183,7 +256,9 @@ export default function Hub() {
                   onDelete={() => deleteMyAI(index)}
                   onEdit={() => router.push(`/builder?edit=${index}`)}
                   onChat={() => router.push(`/chat?ai=${ai.id}`)}
+                  onPublish={publishAI}
                   showDelete={true}
+                  showPublish={true}
                 />
               ))}
             </div>
@@ -238,7 +313,9 @@ export default function Hub() {
                 ai={ai}
                 darkMode={darkMode}
                 onChat={() => router.push(`/chat?ai=${ai.id}`)}
-                showDelete={false}
+                onDelete={(currentUser === 'yenamai07' || currentUser === 'TheBree') ? () => deletePublicAI(ai.id) : undefined}
+                showDelete={currentUser === 'yenamai07' || currentUser === 'TheBree'}
+                showPublish={false}
               />
             ))}
           </div>
@@ -260,78 +337,182 @@ function AICard({
   onDelete, 
   onEdit, 
   onChat,
-  showDelete 
+  onPublish,
+  showDelete,
+  showPublish 
 }: { 
   ai: AIConfig
   darkMode: boolean
   onDelete?: () => void
   onEdit?: () => void
   onChat: () => void
+  onPublish?: (ai: AIConfig, isAnonymous: boolean, category: string) => void
   showDelete: boolean
+  showPublish?: boolean
 }) {
+  const [showPublishDialog, setShowPublishDialog] = useState(false)
+  const [publishAnonymous, setPublishAnonymous] = useState(false)
+  const [publishCategory, setPublishCategory] = useState('general')
+
+  const handlePublish = () => {
+    if (onPublish) {
+      onPublish(ai, publishAnonymous, publishCategory)
+      setShowPublishDialog(false)
+      setPublishAnonymous(false)
+      setPublishCategory('general')
+    }
+  }
+
   return (
-    <div className={`rounded-xl p-6 transition-all hover:scale-105 cursor-pointer ${
-      darkMode
-        ? 'bg-gray-900/50 border-2 border-red-500/30 hover:border-red-500'
-        : 'bg-tafara-blue/30 border-2 border-tafara-teal/30 hover:border-tafara-teal'
-    }`}>
-      {/* Avatar */}
-      <div className="flex justify-center mb-4">
-        {ai.avatar.startsWith('data:') || ai.avatar.startsWith('http') ? (
-          <img src={ai.avatar} alt={ai.name} className="w-20 h-20 rounded-full object-cover" />
-        ) : (
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${
-            darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-          }`}>
-            {ai.avatar}
-          </div>
-        )}
+    <>
+      <div className={`rounded-xl p-6 transition-all hover:scale-105 ${
+        darkMode
+          ? 'bg-gray-900/50 border-2 border-red-500/30 hover:border-red-500'
+          : 'bg-tafara-blue/30 border-2 border-tafara-teal/30 hover:border-tafara-teal'
+      }`}>
+        {/* Avatar */}
+        <div className="flex justify-center mb-4">
+          {ai.avatar.startsWith('data:') || ai.avatar.startsWith('http') ? (
+            <img src={ai.avatar} alt={ai.name} className="w-20 h-20 rounded-full object-cover" />
+          ) : (
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${
+              darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
+            }`}>
+              {ai.avatar}
+            </div>
+          )}
+        </div>
+
+        {/* Name */}
+        <h3 className={`text-xl font-bold text-center mb-2 ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
+          {ai.name}
+        </h3>
+
+        {/* Personality */}
+        <p className={`text-sm text-center mb-4 ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
+          {ai.personality}
+        </p>
+
+        {/* Actions */}
+        <div className="space-y-2">
+          <button
+            onClick={onChat}
+            className={`w-full py-2 rounded-lg font-semibold transition-all ${
+              darkMode
+                ? 'bg-red-500/30 border border-red-500 text-red-300 hover:bg-red-500/50'
+                : 'bg-tafara-teal/30 border border-tafara-teal text-tafara-cyan hover:bg-tafara-teal/50'
+            }`}
+          >
+            💬 Chat
+          </button>
+
+          {showPublish && (
+            <button
+              onClick={() => setShowPublishDialog(true)}
+              className={`w-full py-2 rounded-lg font-medium text-sm border transition-all ${
+                darkMode
+                  ? 'bg-red-700/30 border-red-600 text-red-300 hover:bg-red-700/50'
+                  : 'bg-tafara-cyan/30 border-tafara-cyan text-tafara-cyan hover:bg-tafara-cyan/50'
+              }`}
+            >
+              🌍 Publish
+            </button>
+          )}
+
+          {showDelete && (
+            <div className="flex gap-2">
+              {onEdit && (
+                <button
+                  onClick={onEdit}
+                  className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-gray-700/30 border-gray-600 text-gray-300 hover:bg-gray-700/50"
+                >
+                  ✏️ Edit
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={onDelete}
+                  className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-red-900/30 border-red-700 text-red-400 hover:bg-red-900/50"
+                >
+                  🗑️ Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Name */}
-      <h3 className={`text-xl font-bold text-center mb-2 ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
-        {ai.name}
-      </h3>
+      {/* Publish Dialog */}
+      {showPublishDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50" onClick={() => setShowPublishDialog(false)}>
+          <div 
+            className={`max-w-md w-full rounded-xl p-6 ${
+              darkMode ? 'bg-gray-900 border-2 border-red-500' : 'bg-tafara-blue border-2 border-tafara-teal'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
+              Publish "{ai.name}"
+            </h2>
 
-      {/* Personality */}
-      <p className={`text-sm text-center mb-4 ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
-        {ai.personality}
-      </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>
+                  Category
+                </label>
+                <select
+                  value={publishCategory}
+                  onChange={(e) => setPublishCategory(e.target.value)}
+                  className={`w-full px-4 py-2 rounded-lg ${
+                    darkMode
+                      ? 'bg-gray-800 border border-red-500/30 text-red-300'
+                      : 'bg-tafara-dark/50 border border-tafara-teal/30 text-white'
+                  }`}
+                >
+                  <option value="general">General</option>
+                  <option value="study">Study</option>
+                  <option value="creative">Creative</option>
+                  <option value="productivity">Productivity</option>
+                  <option value="fun">Fun</option>
+                  <option value="coding">Coding</option>
+                </select>
+              </div>
 
-      {/* Actions */}
-      <div className="space-y-2">
-        <button
-          onClick={onChat}
-          className={`w-full py-2 rounded-lg font-semibold transition-all ${
-            darkMode
-              ? 'bg-red-500/30 border border-red-500 text-red-300 hover:bg-red-500/50'
-              : 'bg-tafara-teal/30 border border-tafara-teal text-tafara-cyan hover:bg-tafara-teal/50'
-          }`}
-        >
-          💬 Chat
-        </button>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="anonymous"
+                  checked={publishAnonymous}
+                  onChange={(e) => setPublishAnonymous(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="anonymous" className={`text-sm ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>
+                  Publish as Anonymous
+                </label>
+              </div>
+            </div>
 
-        {showDelete && (
-          <div className="flex gap-2">
-            {onEdit && (
+            <div className="flex gap-3">
               <button
-                onClick={onEdit}
-                className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-gray-700/30 border-gray-600 text-gray-300 hover:bg-gray-700/50"
+                onClick={() => setShowPublishDialog(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-600 text-gray-400 hover:bg-gray-700/30"
               >
-                ✏️ Edit
+                Cancel
               </button>
-            )}
-            {onDelete && (
               <button
-                onClick={onDelete}
-                className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-red-900/30 border-red-700 text-red-400 hover:bg-red-900/50"
+                onClick={handlePublish}
+                className={`flex-1 py-2 rounded-lg font-semibold ${
+                  darkMode
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-tafara-teal text-tafara-dark hover:bg-tafara-cyan'
+                }`}
               >
-                🗑️ Delete
+                Publish
               </button>
-            )}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   )
 }
