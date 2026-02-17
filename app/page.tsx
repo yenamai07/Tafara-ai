@@ -46,8 +46,8 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-8 mb-16 max-w-6xl mx-auto">
             <FeatureCard 
               icon="🔒"
-              title="100% Private"
-              description="All your data stays on your device. No servers, no tracking, no compromises."
+              title="Secure by Design"
+              description="Your data is protected with industry-standard encryption. API keys never touch your browser - all requests are handled server-side."
             />
             <FeatureCard 
               icon="🎨"
