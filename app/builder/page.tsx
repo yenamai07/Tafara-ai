@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface AIConfig {
   name: string
@@ -28,6 +29,7 @@ const PRESET_ACCOUNTS = [
 const SHARED_API_KEY = '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'
 
 export default function Builder() {
+  const router = useRouter()
   const [apiKey, setApiKey] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState('')
@@ -64,17 +66,10 @@ export default function Builder() {
     const savedApiKey = localStorage.getItem('tafara-apikey')
     
     if (savedApiKey && savedUsername) {
-      setApiKey(savedApiKey)
-      setIsAuthenticated(true)
-      setCurrentUser(savedUsername)
-      
-      // Load configs for this specific user
-      const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
-      if (userConfigs) {
-        setSavedConfigs(JSON.parse(userConfigs))
-      }
+      // User is already logged in, redirect to hub
+      router.push('/hub')
     }
-  }, [])
+  }, [router])
 
   const handleLogin = () => {
     if (!username || !password) {
@@ -95,11 +90,8 @@ export default function Builder() {
       localStorage.setItem('tafara-apikey', SHARED_API_KEY)
       localStorage.setItem('tafara-username', username)
       
-      // Load configs for this user
-      const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
-      if (userConfigs) {
-        setSavedConfigs(JSON.parse(userConfigs))
-      }
+      // Redirect to hub
+      router.push('/hub')
       return
     }
 
@@ -119,11 +111,8 @@ export default function Builder() {
         localStorage.setItem('tafara-apikey', userAccount.apiKey)
         localStorage.setItem('tafara-username', username)
         
-        // Load configs for this user
-        const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
-        if (userConfigs) {
-          setSavedConfigs(JSON.parse(userConfigs))
-        }
+        // Redirect to hub
+        router.push('/hub')
         return
       }
     }
