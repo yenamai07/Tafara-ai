@@ -66,8 +66,16 @@ export default function Builder() {
     const savedApiKey = localStorage.getItem('tafara-apikey')
     
     if (savedApiKey && savedUsername) {
-      // User is already logged in, redirect to hub
-      router.push('/hub')
+      // User is already logged in
+      setApiKey(savedApiKey)
+      setIsAuthenticated(true)
+      setCurrentUser(savedUsername)
+      
+      // Load configs for this specific user
+      const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
+      if (userConfigs) {
+        setSavedConfigs(JSON.parse(userConfigs))
+      }
     }
   }, [router])
 
