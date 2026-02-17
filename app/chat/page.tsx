@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
+const MAX_MESSAGES = 15
 
 interface AIConfig {
   name: string
@@ -56,30 +58,14 @@ function MessageContent({ content, darkMode }: { content: string, darkMode: bool
             </code>
           )
         },
-        p({ children }) {
-          return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
-        },
-        ul({ children }) {
-          return <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>
-        },
-        ol({ children }) {
-          return <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
-        },
-        li({ children }) {
-          return <li className="leading-relaxed">{children}</li>
-        },
-        h1({ children }) {
-          return <h1 className="text-xl font-bold mb-2 mt-3">{children}</h1>
-        },
-        h2({ children }) {
-          return <h2 className="text-lg font-bold mb-2 mt-3">{children}</h2>
-        },
-        h3({ children }) {
-          return <h3 className="text-base font-bold mb-1 mt-2">{children}</h3>
-        },
-        strong({ children }) {
-          return <strong className="font-bold">{children}</strong>
-        },
+        p({ children }) { return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p> },
+        ul({ children }) { return <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul> },
+        ol({ children }) { return <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol> },
+        li({ children }) { return <li className="leading-relaxed">{children}</li> },
+        h1({ children }) { return <h1 className="text-xl font-bold mb-2 mt-3">{children}</h1> },
+        h2({ children }) { return <h2 className="text-lg font-bold mb-2 mt-3">{children}</h2> },
+        h3({ children }) { return <h3 className="text-base font-bold mb-1 mt-2">{children}</h3> },
+        strong({ children }) { return <strong className="font-bold">{children}</strong> },
         blockquote({ children }) {
           return (
             <blockquote className={`border-l-4 pl-3 my-2 italic ${darkMode ? 'border-red-500 text-red-300' : 'border-teal-500 text-gray-300'}`}>
@@ -106,15 +92,18 @@ function ChatPageContent() {
   const [currentUser, setCurrentUser] = useState('')
   const [config, setConfig] = useState<AIConfig | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
-    if (savedDarkMode) {
-      setDarkMode(savedDarkMode === 'true')
-    }
+    if (savedDarkMode) setDarkMode(savedDarkMode === 'true')
 
     const savedUsername = localStorage.getItem('tafara-username')
-
     if (!savedUsername) {
       router.push('/builder')
       return
@@ -129,7 +118,61 @@ function ChatPageContent() {
     }
   }, [aiId, router])
 
+  // Load chat history once we have both userId and aiId
+  useEffect(() => {
+    if (userId && aiId) {
+      loadChatHistory(userId, aiId)
+    }
+  }, [userId, aiId])
+
+  const loadChatHistory = async (uid: string, aid: string) => {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('role, content, created_at')
+      .eq('user_id', uid)
+      .eq('ai_id', aid)
+      .order('created_at', { ascending: false })
+      .limit(MAX_MESSAGES)
+
+    if (error) {
+      console.error('Error loading chat history:', error)
+      return
+    }
+
+    if (data && data.length > 0) {
+      // Reverse so oldest messages are first
+      setMessages(data.reverse().map(m => ({ role: m.role, content: m.content })))
+    }
+  }
+
+  const saveMessage = async (uid: string, aid: string, role: string, content: string) => {
+    // Insert the new message
+    await supabase.from('chat_messages').insert({
+      user_id: uid,
+      ai_id: aid,
+      role,
+      content
+    })
+
+    // Enforce the 15 message limit — delete oldest if over
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('id, created_at')
+      .eq('user_id', uid)
+      .eq('ai_id', aid)
+      .order('created_at', { ascending: true })
+
+    if (data && data.length > MAX_MESSAGES) {
+      const toDelete = data.slice(0, data.length - MAX_MESSAGES).map(m => m.id)
+      await supabase.from('chat_messages').delete().in('id', toDelete)
+    }
+  }
+
   const loadAI = async (id: string, username: string) => {
+    // Get the current user's ID for history
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) setUserId(session.user.id)
+
     if (id.startsWith(username)) {
       const index = parseInt(id.split('-')[1])
       const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
@@ -180,9 +223,11 @@ function ChatPageContent() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
 
-      if (!session) {
-        throw new Error('Not authenticated')
+      // Save user message to Supabase
+      if (userId && aiId) {
+        await saveMessage(userId, aiId, 'user', input)
       }
 
       const response = await fetch('/api/chat', {
@@ -196,12 +241,15 @@ function ChatPageContent() {
       })
 
       const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'API request failed')
 
-      if (!response.ok) {
-        throw new Error(data.error || 'API request failed')
+      const aiMessage = { role: 'assistant', content: data.content }
+      setMessages(prev => [...prev, aiMessage])
+
+      // Save AI response to Supabase
+      if (userId && aiId) {
+        await saveMessage(userId, aiId, 'assistant', data.content)
       }
-
-      setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
 
     } catch (error) {
       console.error('Error:', error)
@@ -412,6 +460,7 @@ function ChatPageContent() {
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
