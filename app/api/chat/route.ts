@@ -2,9 +2,15 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
+  console.log('ENV CHECK:', {
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasSharedKey: !!process.env.SHARED_API_KEY,
+  })
+
   try {
     const { messages, config, sessionToken } = await request.json()
-
+    // ... rest of your code
     if (!sessionToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -81,7 +87,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ content: data.choices[0].message.content })
 
   } catch (error) {
-    console.error('Chat API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  console.error('Chat API error:', error instanceof Error ? error.message : error)
+  console.error('Stack:', error instanceof Error ? error.stack : 'no stack')
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
