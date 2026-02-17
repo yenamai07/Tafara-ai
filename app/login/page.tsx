@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   // Login fields
-  const [username, setUsername] = useState('')
+  const [identifier, setIdentifier] = useState('') // username OR email
   const [password, setPassword] = useState('')
 
   // Create account fields
@@ -38,56 +38,98 @@ export default function LoginPage() {
     localStorage.setItem('tafara-darkmode-global', String(newMode))
   }
 
+  const isEmail = (value: string) => value.includes('@')
+
   const handleLogin = async () => {
-    if (!username || !password) {
-      alert('Please enter username and password')
+    if (!identifier || !password) {
+      alert('Please enter your username or email, and password')
       return
     }
     setLoading(true)
     try {
-      // Look up profile by username
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('id, username, is_preset_account')
-        .eq('username', username)
-        .single()
+      let email = identifier.trim()
+      let username = ''
 
-      if (profileError || !profile) {
-        alert('Username not found')
-        setLoading(false)
-        return
-      }
+      if (isEmail(email)) {
+        // ── Email login: look up username from user_profiles for localStorage ──
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('username, is_preset_account')
+          .eq('email', email)
+          .single()
 
-      // Build email from username
-      const email = `${username}@tafara.ai`
+        username = profile?.username ?? email.split('@')[0]
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-
-      if (error) {
-        alert('Invalid username or password')
-        setLoading(false)
-        return
-      }
-
-      if (data.session) {
-        localStorage.setItem('tafara-username', username)
-
-        if (profile.is_preset_account) {
-          // Fetch shared key from API route (keeps it server-side)
-          const res = await fetch('/api/shared-key')
-          const { key } = await res.json()
-          localStorage.setItem('tafara-apikey', key)
-        } else {
-          const { data: fullProfile } = await supabase
-            .from('user_profiles')
-            .select('api_key')
-            .eq('id', data.session.user.id)
-            .single()
-          if (fullProfile?.api_key) {
-            localStorage.setItem('tafara-apikey', fullProfile.api_key)
-          }
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) {
+          alert('Invalid email or password')
+          setLoading(false)
+          return
         }
-        router.push('/hub')
+
+        if (data.session) {
+          localStorage.setItem('tafara-username', username)
+
+          if (profile?.is_preset_account) {
+            const res = await fetch('/api/shared-key')
+            const { key } = await res.json()
+            localStorage.setItem('tafara-apikey', key)
+          } else {
+            const { data: fullProfile } = await supabase
+              .from('user_profiles')
+              .select('api_key')
+              .eq('id', data.session.user.id)
+              .single()
+            if (fullProfile?.api_key) {
+              localStorage.setItem('tafara-apikey', fullProfile.api_key)
+            }
+          }
+          router.push('/hub')
+        }
+      } else {
+        // ── Username login: look up profile to get email ──────────────────────
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('id, username, email, is_preset_account')
+          .eq('username', identifier.trim())
+          .single()
+
+        if (profileError || !profile) {
+          // Fallback: try the old username@tafara.ai convention
+          email = `${identifier.trim()}@tafara.ai`
+          username = identifier.trim()
+        } else {
+          // Prefer the real stored email; fall back to the synthetic one
+          email = profile.email ?? `${profile.username}@tafara.ai`
+          username = profile.username
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) {
+          alert('Invalid username or password')
+          setLoading(false)
+          return
+        }
+
+        if (data.session) {
+          localStorage.setItem('tafara-username', username)
+
+          if (profile?.is_preset_account) {
+            const res = await fetch('/api/shared-key')
+            const { key } = await res.json()
+            localStorage.setItem('tafara-apikey', key)
+          } else {
+            const { data: fullProfile } = await supabase
+              .from('user_profiles')
+              .select('api_key')
+              .eq('id', data.session.user.id)
+              .single()
+            if (fullProfile?.api_key) {
+              localStorage.setItem('tafara-apikey', fullProfile.api_key)
+            }
+          }
+          router.push('/hub')
+        }
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -144,6 +186,7 @@ export default function LoginPage() {
         await supabase.from('user_profiles').insert([{
           id: data.user.id,
           username: createUsername,
+          email: createEmail,       // store the real email so username login works later
           api_key: createApiKey,
           is_preset_account: false
         }])
@@ -243,18 +286,26 @@ export default function LoginPage() {
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+            <label className="block text-sm font-medium text-gray-300 mb-2">Username or Email</label>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               className={`w-full px-4 py-3 rounded-lg focus:outline-none ${dm ? 'bg-gray-900/50 border-2 border-red-500/30 text-red-400 focus:border-red-500' : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white focus:border-tafara-teal'}`}
-              placeholder="Enter your username" />
+              placeholder="Username or email address"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
               className={`w-full px-4 py-3 rounded-lg focus:outline-none ${dm ? 'bg-gray-900/50 border-2 border-red-500/30 text-red-400 focus:border-red-500' : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white focus:border-tafara-teal'}`}
-              placeholder="Enter your password" />
+              placeholder="Enter your password"
+            />
           </div>
           <button onClick={handleLogin} disabled={loading}
             className={`w-full py-3 rounded-lg font-semibold transition-all disabled:opacity-50 ${dm ? 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:shadow-xl hover:shadow-red-500/50' : 'bg-gradient-to-r from-tafara-teal to-tafara-cyan text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50'}`}>
