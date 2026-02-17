@@ -64,7 +64,7 @@ export default function Home() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
             <Link 
-              href="/builder"
+              href="/login"
               className="group relative px-8 py-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-lg text-tafara-dark hover:shadow-2xl hover:shadow-tafara-teal/50 transform hover:scale-105 transition-all duration-300"
             >
               <span className="relative z-10">Start Building Now</span>
