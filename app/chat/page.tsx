@@ -91,9 +91,22 @@ function ChatPageContent() {
   const [darkMode, setDarkMode] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
   const [config, setConfig] = useState<AIConfig | null>(null)
-  const [showSidebar, setShowSidebar] = useState(true)
+  const [showSidebar, setShowSidebar] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Detect mobile and set sidebar default
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      setShowSidebar(!mobile) // hidden on mobile, shown on desktop
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -118,7 +131,6 @@ function ChatPageContent() {
     }
   }, [aiId, router])
 
-  // Load chat history once we have both userId and aiId
   useEffect(() => {
     if (userId && aiId) {
       loadChatHistory(userId, aiId)
@@ -140,21 +152,13 @@ function ChatPageContent() {
     }
 
     if (data && data.length > 0) {
-      // Reverse so oldest messages are first
       setMessages(data.reverse().map(m => ({ role: m.role, content: m.content })))
     }
   }
 
   const saveMessage = async (uid: string, aid: string, role: string, content: string) => {
-    // Insert the new message
-    await supabase.from('chat_messages').insert({
-      user_id: uid,
-      ai_id: aid,
-      role,
-      content
-    })
+    await supabase.from('chat_messages').insert({ user_id: uid, ai_id: aid, role, content })
 
-    // Enforce the 15 message limit — delete oldest if over
     const { data } = await supabase
       .from('chat_messages')
       .select('id, created_at')
@@ -169,7 +173,6 @@ function ChatPageContent() {
   }
 
   const loadAI = async (id: string, username: string) => {
-    // Get the current user's ID for history
     const { data: { session } } = await supabase.auth.getSession()
     if (session) setUserId(session.user.id)
 
@@ -221,11 +224,13 @@ function ChatPageContent() {
     setInput('')
     setIsLoading(true)
 
+    // Close sidebar on mobile when sending a message
+    if (isMobile) setShowSidebar(false)
+
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
-      // Save user message to Supabase
       if (userId && aiId) {
         await saveMessage(userId, aiId, 'user', input)
       }
@@ -246,7 +251,6 @@ function ChatPageContent() {
       const aiMessage = { role: 'assistant', content: data.content }
       setMessages(prev => [...prev, aiMessage])
 
-      // Save AI response to Supabase
       if (userId && aiId) {
         await saveMessage(userId, aiId, 'assistant', data.content)
       }
@@ -263,234 +267,240 @@ function ChatPageContent() {
     }
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    localStorage.removeItem('tafara-apikey')
+    localStorage.removeItem('tafara-username')
+    router.push('/login')
+  }
+
+  const AvatarDisplay = ({ size }: { size: 'sm' | 'lg' }) => {
+    const sizeClass = size === 'lg' ? 'w-12 h-12 md:w-16 md:h-16 text-2xl md:text-3xl' : 'w-8 h-8 md:w-10 md:h-10 text-lg md:text-xl'
+    return config?.avatar.startsWith('data:') || config?.avatar.startsWith('http') ? (
+      <img src={config.avatar} alt={config?.name} className={`${sizeClass} rounded-full object-cover`} />
+    ) : (
+      <div className={`${sizeClass} rounded-full flex items-center justify-center ${darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'}`}>
+        {config?.avatar}
+      </div>
+    )
+  }
+
   if (!config) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className={`text-xl ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
-          Loading...
-        </div>
+        <div className={`text-xl ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
-      {/* Sidebar */}
-      <div className={`${showSidebar ? 'w-20' : 'w-0'} transition-all duration-300 flex flex-col items-center py-6 gap-6 border-r ${
-        darkMode ? 'bg-gray-900/50 border-red-500/30' : 'bg-tafara-blue/30 border-tafara-teal/30'
+    <div className={`min-h-screen flex flex-col ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+
+      {/* TOP NAV BAR — mobile friendly header with toggle built in */}
+      <div className={`flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 ${
+        darkMode ? 'bg-gray-900/80 border-red-500/30' : 'bg-tafara-blue/50 border-tafara-teal/30'
       }`}>
-        {showSidebar && (
-          <>
-            <Link
-              href="/hub"
-              className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
-                  : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
-              }`}
-              title="Hub"
-            >
-              <span className="text-2xl">🏠</span>
-            </Link>
+        {/* Sidebar toggle — no longer overlaps anything */}
+        <button
+          onClick={() => setShowSidebar(!showSidebar)}
+          className={`p-2 rounded-lg flex-shrink-0 ${
+            darkMode
+              ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+              : 'bg-tafara-teal/20 border border-tafara-teal/50 text-tafara-cyan'
+          }`}
+        >
+          {showSidebar ? '✕' : '☰'}
+        </button>
 
-            <Link
-              href="/builder"
-              className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
-                  : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
-              }`}
-              title="Builder"
-            >
-              <span className="text-2xl">🔧</span>
-            </Link>
-
-            <button
-              onClick={() => {
-                const newMode = !darkMode
-                setDarkMode(newMode)
-                localStorage.setItem('tafara-darkmode-global', String(newMode))
-              }}
-              className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
-                  : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
-              }`}
-              title="Toggle Dark Mode"
-            >
-              <span className="text-2xl">{darkMode ? '🌙' : '☀️'}</span>
-            </button>
-
-            <div className="flex-1"></div>
-
-            <button
-              onClick={() => {
-                localStorage.removeItem('tafara-apikey')
-                localStorage.removeItem('tafara-username')
-                router.push('/builder')
-              }}
-              className="p-3 rounded-lg transition-all hover:scale-110 bg-red-900/30 border-2 border-red-700/50 hover:bg-red-900/50"
-              title="Logout"
-            >
-              <span className="text-2xl">🚪</span>
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Toggle Sidebar Button */}
-      <button
-        onClick={() => setShowSidebar(!showSidebar)}
-        className={`fixed top-4 left-4 z-50 p-2 rounded-lg ${
-          darkMode
-            ? 'bg-red-500/30 border border-red-500 text-red-400'
-            : 'bg-tafara-teal/30 border border-tafara-teal text-tafara-cyan'
-        }`}
-      >
-        {showSidebar ? '◀' : '▶'}
-      </button>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col p-4 md:p-6 min-w-0">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6 ml-12">
-          <div>
-            {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-              <img src={config.avatar} alt={config.name} className="w-16 h-16 rounded-full object-cover" />
-            ) : (
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${
-                darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-              }`}>
-                {config.avatar}
-              </div>
-            )}
-          </div>
-          <div>
-            <h1 className={`text-3xl font-bold ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>
+        {/* AI avatar + name in header */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <AvatarDisplay size="sm" />
+          <div className="min-w-0">
+            <h1 className={`font-bold truncate text-lg md:text-2xl ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>
               {config.name}
             </h1>
-            <p className={`text-sm ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
+            <p className={`text-xs truncate ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
               {config.personality}
             </p>
           </div>
         </div>
+      </div>
 
-        {/* Chat Messages */}
-        <div
-          className={`flex-1 rounded-xl p-4 md:p-6 mb-4 overflow-y-auto bg-cover bg-center ${
-            darkMode
-              ? 'bg-gray-900/50 border-2 border-red-500/30'
-              : 'bg-tafara-blue/30 border-2 border-tafara-teal/30'
-          }`}
-          style={{
-            backgroundImage: config.background
-              ? darkMode
-                ? `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${config.background})`
-                : `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})`
-              : 'none'
-          }}
-        >
-          {messages.length === 0 ? (
-            <div className={`text-center mt-20 ${darkMode ? 'text-red-400' : 'text-gray-400'}`}>
-              <div className="text-6xl mb-4">
-                {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                  <img src={config.avatar} alt="AI Avatar" className="w-20 h-20 rounded-full mx-auto object-cover" />
-                ) : (
-                  <span>{config.avatar}</span>
-                )}
-              </div>
-              <p className="text-xl mb-2">Start chatting with {config.name}!</p>
-              <p className="text-sm">Your AI is ready to help.</p>
+      {/* BODY — sidebar + chat */}
+      <div className="flex flex-1 min-h-0 relative">
+
+        {/* Sidebar — overlay on mobile, push on desktop */}
+        {showSidebar && (
+          <>
+            {/* Mobile backdrop */}
+            {isMobile && (
+              <div
+                className="fixed inset-0 bg-black/50 z-30"
+                onClick={() => setShowSidebar(false)}
+              />
+            )}
+
+            <div className={`
+              ${isMobile ? 'fixed top-0 left-0 h-full z-40 pt-16' : 'relative'}
+              w-20 flex flex-col items-center py-6 gap-6 border-r flex-shrink-0
+              ${darkMode ? 'bg-gray-900 border-red-500/30' : 'bg-tafara-blue border-tafara-teal/30'}
+            `}>
+              <Link
+                href="/hub"
+                onClick={() => isMobile && setShowSidebar(false)}
+                className={`p-3 rounded-lg transition-all hover:scale-110 ${
+                  darkMode
+                    ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
+                    : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
+                }`}
+                title="Hub"
+              >
+                <span className="text-2xl">🏠</span>
+              </Link>
+
+              <Link
+                href="/builder"
+                onClick={() => isMobile && setShowSidebar(false)}
+                className={`p-3 rounded-lg transition-all hover:scale-110 ${
+                  darkMode
+                    ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
+                    : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
+                }`}
+                title="Builder"
+              >
+                <span className="text-2xl">🔧</span>
+              </Link>
+
+              <button
+                onClick={() => {
+                  const newMode = !darkMode
+                  setDarkMode(newMode)
+                  localStorage.setItem('tafara-darkmode-global', String(newMode))
+                }}
+                className={`p-3 rounded-lg transition-all hover:scale-110 ${
+                  darkMode
+                    ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
+                    : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
+                }`}
+                title="Toggle Dark Mode"
+              >
+                <span className="text-2xl">{darkMode ? '🌙' : '☀️'}</span>
+              </button>
+
+              <div className="flex-1" />
+
+              <button
+                onClick={handleLogout}
+                className="p-3 rounded-lg transition-all hover:scale-110 bg-red-900/30 border-2 border-red-700/50 hover:bg-red-900/50"
+                title="Logout"
+              >
+                <span className="text-2xl">🚪</span>
+              </button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="flex-shrink-0">
-                      {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                        <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
-                          darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-                        }`}>
-                          {config.avatar}
+          </>
+        )}
+
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+
+          {/* Messages */}
+          <div
+            className={`flex-1 overflow-y-auto p-3 md:p-6 bg-cover bg-center ${
+              darkMode ? 'bg-gray-900/50' : 'bg-tafara-blue/30'
+            }`}
+            style={{
+              backgroundImage: config.background
+                ? darkMode
+                  ? `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${config.background})`
+                  : `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})`
+                : 'none'
+            }}
+          >
+            {messages.length === 0 ? (
+              <div className={`text-center mt-20 ${darkMode ? 'text-red-400' : 'text-gray-400'}`}>
+                <div className="flex justify-center mb-4">
+                  <AvatarDisplay size="lg" />
+                </div>
+                <p className="text-xl mb-2">Start chatting with {config.name}!</p>
+                <p className="text-sm">Your AI is ready to help.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`flex gap-2 md:gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role === 'assistant' && (
+                      <div className="flex-shrink-0 self-end">
+                        <AvatarDisplay size="sm" />
+                      </div>
+                    )}
+                    <div className={`max-w-[88%] md:max-w-[75%] px-3 md:px-4 py-2 md:py-3 rounded-2xl overflow-hidden text-sm md:text-base ${
+                      msg.role === 'user'
+                        ? darkMode
+                          ? 'bg-red-500/30 border border-red-500 text-red-100 rounded-br-sm'
+                          : 'bg-tafara-teal text-tafara-dark rounded-br-sm'
+                        : darkMode
+                          ? 'bg-black/70 border border-red-500/30 text-red-400 rounded-bl-sm'
+                          : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white rounded-bl-sm'
+                    }`}>
+                      {msg.role === 'assistant' ? (
+                        <div className="prose prose-sm max-w-none overflow-x-auto">
+                          <MessageContent content={msg.content} darkMode={darkMode} />
                         </div>
+                      ) : (
+                        msg.content
                       )}
                     </div>
-                  )}
-                  <div className={`w-full max-w-[85%] md:max-w-[75%] px-4 py-3 rounded-lg overflow-hidden ${
-                    msg.role === 'user'
-                      ? darkMode
-                        ? 'bg-red-500/30 border border-red-500 text-red-100'
-                        : 'bg-tafara-teal text-tafara-dark'
-                      : darkMode
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex gap-2 md:gap-3 justify-start">
+                    <div className="flex-shrink-0 self-end">
+                      <AvatarDisplay size="sm" />
+                    </div>
+                    <div className={`px-3 md:px-4 py-2 md:py-3 rounded-2xl rounded-bl-sm text-sm md:text-base ${
+                      darkMode
                         ? 'bg-black/70 border border-red-500/30 text-red-400'
                         : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
-                  }`}>
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm max-w-none overflow-x-auto">
-                        <MessageContent content={msg.content} darkMode={darkMode} />
-                      </div>
-                    ) : (
-                      msg.content
-                    )}
+                    }`}>
+                      <span className="animate-pulse">Thinking...</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <div className="flex-shrink-0">
-                    {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                      <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
-                        darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-                      }`}>
-                        {config.avatar}
-                      </div>
-                    )}
-                  </div>
-                  <div className={`px-4 py-3 rounded-lg ${
-                    darkMode
-                      ? 'bg-black/70 border border-red-500/30 text-red-400'
-                      : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
-                  }`}>
-                    Thinking...
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
 
-        {/* Input Area */}
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
-            className={`flex-1 px-4 py-3 rounded-lg focus:outline-none ${
-              darkMode
-                ? 'bg-gray-900/50 border-2 border-red-500/30 text-red-400 placeholder-red-500/50 focus:border-red-500'
-                : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white placeholder-gray-400 focus:border-tafara-teal'
-            }`}
-            placeholder="Type your message..."
-            disabled={isLoading}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all disabled:opacity-50 ${
-              darkMode
-                ? 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:shadow-xl hover:shadow-red-500/50'
-                : 'bg-gradient-to-r from-tafara-teal to-tafara-cyan text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50'
-            }`}
-          >
-            Send
-          </button>
+          {/* Input Area */}
+          <div className={`flex gap-2 p-3 md:p-4 border-t flex-shrink-0 ${
+            darkMode ? 'bg-gray-900/80 border-red-500/30' : 'bg-tafara-blue/50 border-tafara-teal/30'
+          }`}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
+              className={`flex-1 px-4 py-3 rounded-xl focus:outline-none text-sm md:text-base ${
+                darkMode
+                  ? 'bg-gray-800 border-2 border-red-500/30 text-red-400 placeholder-red-500/50 focus:border-red-500'
+                  : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white placeholder-gray-400 focus:border-tafara-teal'
+              }`}
+              placeholder="Type your message..."
+              disabled={isLoading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isLoading}
+              className={`px-4 md:px-6 py-3 rounded-xl font-semibold transition-all disabled:opacity-50 text-sm md:text-base flex-shrink-0 ${
+                darkMode
+                  ? 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:shadow-xl hover:shadow-red-500/50'
+                  : 'bg-gradient-to-r from-tafara-teal to-tafara-cyan text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50'
+              }`}
+            >
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
