@@ -15,6 +15,8 @@ interface AIConfig {
   id: string
   category?: string
   isPublished?: boolean
+  creatorUsername?: string
+  isAnonymous?: boolean
 }
 
 export default function Hub() {
@@ -79,7 +81,9 @@ export default function Hub() {
           model: ai.model,
           avatar: ai.avatar,
           background: ai.background || '',
-          category: ai.category || 'general'
+          category: ai.category || 'general',
+          creatorUsername: ai.creator_username,
+          isAnonymous: ai.is_anonymous
         })))
       }
     } catch (error) {
@@ -316,6 +320,8 @@ export default function Hub() {
                 onDelete={(currentUser === 'yenamai07' || currentUser === 'TheBree') ? () => deletePublicAI(ai.id) : undefined}
                 showDelete={currentUser === 'yenamai07' || currentUser === 'TheBree'}
                 showPublish={false}
+                currentUser={currentUser}
+                isModerator={currentUser === 'yenamai07' || currentUser === 'TheBree'}
               />
             ))}
           </div>
@@ -339,7 +345,9 @@ function AICard({
   onChat,
   onPublish,
   showDelete,
-  showPublish 
+  showPublish,
+  currentUser,
+  isModerator
 }: { 
   ai: AIConfig
   darkMode: boolean
@@ -349,6 +357,8 @@ function AICard({
   onPublish?: (ai: AIConfig, isAnonymous: boolean, category: string) => void
   showDelete: boolean
   showPublish?: boolean
+  currentUser?: string
+  isModerator?: boolean
 }) {
   const [showPublishDialog, setShowPublishDialog] = useState(false)
   const [publishAnonymous, setPublishAnonymous] = useState(false)
@@ -389,9 +399,20 @@ function AICard({
         </h3>
 
         {/* Personality */}
-        <p className={`text-sm text-center mb-4 ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
+        <p className={`text-sm text-center mb-2 ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
           {ai.personality}
         </p>
+
+        {/* Creator (show for community AIs) */}
+        {ai.creatorUsername && (
+          <p className={`text-xs text-center mb-4 ${darkMode ? 'text-red-400/50' : 'text-gray-500'}`}>
+            {isModerator && ai.isAnonymous ? (
+              <>🔒 Anonymous (actually: <span className="font-semibold">{ai.creatorUsername}</span>)</>
+            ) : (
+              <>by {ai.creatorUsername}</>
+            )}
+          </p>
+        )}
 
         {/* Actions */}
         <div className="space-y-2">
