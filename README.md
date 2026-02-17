@@ -4,7 +4,7 @@ Build your own AI assistant without writing code. Private, free, and accessible 
 
 ## Features
 
-- 🔒 **100% Private** - All data stored locally on your device
+- 🔒 **"Secure by Design"** - All data stored far from pubic eyes
 - 🎨 **No Code Required** - Simple interface for building AI assistants
 - 🌍 **Truly Free** - No costs, no ads, no donations
 - 📱 **Cross-Platform** - Works on phone, tablet, and desktop
