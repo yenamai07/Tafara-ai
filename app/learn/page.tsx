@@ -38,7 +38,7 @@ export default function Learn() {
                 <li>Paste it into Tafara.ai when prompted</li>
               </ol>
               <div className="bg-tafara-teal/10 border border-tafara-teal/30 rounded-lg p-4 mt-4">
-                <p className="text-sm">💡 <strong>Pro Tip:</strong> OpenRouter gives you free credits to start! You can try different AI models without any cost.</p>
+                <p className="text-sm">💡 <strong>Pro Tip:</strong> All models on Tafara.ai are completely free! We've hand-picked the best free AI models so you never have to worry about costs.</p>
               </div>
             </div>
           </Section>
@@ -62,10 +62,12 @@ export default function Learn() {
                 description="Different models have different strengths:"
               />
               <ul className="list-disc list-inside ml-6 space-y-2">
-                <li><strong className="text-tafara-cyan">GPT-4o Mini:</strong> Fast and cheap, great for simple tasks</li>
-                <li><strong className="text-tafara-cyan">GPT-4o:</strong> Balanced performance and cost</li>
-                <li><strong className="text-tafara-cyan">Claude 3.5 Sonnet:</strong> Very smart, great for complex tasks</li>
-                <li><strong className="text-tafara-cyan">Gemini Pro:</strong> Google's powerful model</li>
+                <li><strong className="text-tafara-cyan">Aurora Alpha:</strong> Great all-around performance</li>
+                <li><strong className="text-tafara-cyan">Step 3.5 Flash:</strong> Lightning fast responses</li>
+                <li><strong className="text-tafara-cyan">Trinity Large:</strong> Powerful for complex tasks</li>
+                <li><strong className="text-tafara-cyan">LFM 2.5 Thinking:</strong> Advanced reasoning capabilities</li>
+                <li><strong className="text-tafara-cyan">Nemotron Models:</strong> NVIDIA's cutting-edge AI</li>
+                <li><strong className="text-tafara-cyan">Qwen3 VL:</strong> Excellent for visual understanding</li>
               </ul>
             </div>
           </Section>
