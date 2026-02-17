@@ -25,9 +25,6 @@ const PRESET_ACCOUNTS = [
   { username: 'TheBree', password: 'pass6591' }
 ]
 
-// Your shared API key (for you and TheBree only)
-const SHARED_API_KEY = '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'
-
 export default function Builder() {
   const router = useRouter()
   const [apiKey, setApiKey] = useState('')
