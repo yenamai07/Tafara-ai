@@ -3,40 +3,19 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 interface AIConfig {
   name: string
   personality: string
   instructions: string
   model: string
-  avatar: string // URL or preset icon
-  background: string // Background image URL or color
+  avatar: string
+  background: string
 }
-
-interface UserAccount {
-  username: string
-  password: string
-  apiKey: string
-}
-
-// Preset accounts (you and TheBree) - they use the shared key
-const PRESET_ACCOUNTS = [
-  { username: 'yenamai07', password: 'pass6591' },
-  { username: 'TheBree', password: 'pass6591' }
-]
 
 export default function Builder() {
   const router = useRouter()
-  const [apiKey, setApiKey] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showCreateAccount, setShowCreateAccount] = useState(false)
-  const [createUsername, setCreateUsername] = useState('')
-  const [createPassword, setCreatePassword] = useState('')
-  const [createPasswordConfirm, setCreatePasswordConfirm] = useState('')
-  const [createApiKey, setCreateApiKey] = useState('')
-  
   const [config, setConfig] = useState<AIConfig>({
     name: 'My AI Assistant',
     personality: 'helpful and friendly',
@@ -45,144 +24,39 @@ export default function Builder() {
     avatar: '🤖',
     background: ''
   })
-
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
   const [showChat, setShowChat] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
   const [darkMode, setDarkMode] = useState(false)
 
-  // Load saved configurations from localStorage for current user
   useEffect(() => {
-    // Load dark mode first (even before login)
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
-    if (savedDarkMode) {
-      setDarkMode(savedDarkMode === 'true')
-    }
+    if (savedDarkMode) setDarkMode(savedDarkMode === 'true')
 
-    const savedUsername = localStorage.getItem('tafara-username')
-    const savedApiKey = localStorage.getItem('tafara-apikey')
-    
-    if (savedApiKey && savedUsername) {
-      // User is already logged in
-      setApiKey(savedApiKey)
-      setIsAuthenticated(true)
-      setCurrentUser(savedUsername)
-      
-      // Load configs for this specific user
-      const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
-      if (userConfigs) {
-        setSavedConfigs(JSON.parse(userConfigs))
-      }
-    }
-  }, [router])
-
-  const handleLogin = () => {
-    if (!username || !password) {
-      alert('Please enter username and password')
-      return
-    }
-
-    // Check if it's a preset account (you or TheBree)
-    const isPresetAccount = PRESET_ACCOUNTS.some(
-      acc => acc.username === username && acc.password === password
-    )
-    
-    if (isPresetAccount) {
-      // Use shared API key
-      setApiKey(SHARED_API_KEY)
-      setIsAuthenticated(true)
-      setCurrentUser(username)
-      localStorage.setItem('tafara-apikey', SHARED_API_KEY)
-      localStorage.setItem('tafara-username', username)
-      
-      // Redirect to hub
-      router.push('/hub')
-      return
-    }
-
-    // Check user-created accounts
-    const storedAccounts = localStorage.getItem('tafara-accounts')
-    if (storedAccounts) {
-      const accounts: UserAccount[] = JSON.parse(storedAccounts)
-      const userAccount = accounts.find(
-        acc => acc.username === username && acc.password === password
-      )
-      
-      if (userAccount) {
-        // Use their own API key
-        setApiKey(userAccount.apiKey)
-        setIsAuthenticated(true)
-        setCurrentUser(username)
-        localStorage.setItem('tafara-apikey', userAccount.apiKey)
-        localStorage.setItem('tafara-username', username)
-        
-        // Redirect to hub
-        router.push('/hub')
+    // Check authentication via Supabase
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.push('/login')
         return
       }
-    }
-
-    alert('Invalid username or password')
-  }
-
-  const handleCreateAccount = () => {
-    if (!createUsername || !createPassword || !createApiKey) {
-      alert('Please fill in all fields')
-      return
-    }
-
-    if (createPassword !== createPasswordConfirm) {
-      alert('Passwords do not match')
-      return
-    }
-
-    if (!createApiKey.startsWith('sk-or-')) {
-      alert('Invalid OpenRouter API key format')
-      return
-    }
-
-    // Check if username already exists
-    const presetExists = PRESET_ACCOUNTS.some(acc => acc.username === createUsername)
-    if (presetExists) {
-      alert('Username already taken')
-      return
-    }
-
-    const storedAccounts = localStorage.getItem('tafara-accounts')
-    const accounts: UserAccount[] = storedAccounts ? JSON.parse(storedAccounts) : []
-    
-    const userExists = accounts.some(acc => acc.username === createUsername)
-    if (userExists) {
-      alert('Username already taken')
-      return
-    }
-
-    // Create new account
-    accounts.push({ 
-      username: createUsername, 
-      password: createPassword,
-      apiKey: createApiKey
+      const username = localStorage.getItem('tafara-username') || ''
+      setCurrentUser(username)
+      const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
+      if (userConfigs) setSavedConfigs(JSON.parse(userConfigs))
     })
-    localStorage.setItem('tafara-accounts', JSON.stringify(accounts))
+  }, [router])
 
-    alert('Account created successfully! You can now log in.')
-    setShowCreateAccount(false)
-    setCreateUsername('')
-    setCreatePassword('')
-    setCreatePasswordConfirm('')
-    setCreateApiKey('')
+  const toggleDarkMode = () => {
+    const newMode = !darkMode
+    setDarkMode(newMode)
+    localStorage.setItem('tafara-darkmode-global', String(newMode))
   }
 
   const saveConfig = () => {
     const newConfigs = [...savedConfigs, config]
     setSavedConfigs(newConfigs)
-    // Save configs with username prefix so each user has their own
     localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(newConfigs))
     alert('Configuration saved!')
-  }
-
-  const loadConfig = (cfg: AIConfig) => {
-    setConfig(cfg)
   }
 
   const deleteConfig = (index: number) => {
@@ -191,298 +65,74 @@ export default function Builder() {
     localStorage.setItem(`tafara-configs-${currentUser}`, JSON.stringify(newConfigs))
   }
 
-  const toggleDarkMode = () => {
-    const newMode = !darkMode
-    setDarkMode(newMode)
-    localStorage.setItem('tafara-darkmode-global', String(newMode))
-  }
-
-  if (!isAuthenticated) {
-    if (showCreateAccount) {
-      return (
-        <div className={`min-h-screen flex items-center justify-center p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
-          <div className={`max-w-md w-full backdrop-blur-sm rounded-xl p-8 ${
-            darkMode 
-              ? 'bg-gray-900/50 border border-red-500/30' 
-              : 'bg-tafara-blue/30 border border-tafara-teal/30'
-          }`}>
-            <div className="flex justify-between items-center mb-6">
-              <button 
-                onClick={() => setShowCreateAccount(false)}
-                className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}
-              >
-                ← Back to Login
-              </button>
-              <button
-                onClick={toggleDarkMode}
-                className="text-2xl"
-              >
-                {darkMode ? '🌙' : '☀️'}
-              </button>
-            </div>
-            
-            <h1 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Create Account</h1>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={createUsername}
-                  onChange={(e) => setCreateUsername(e.target.value)}
-                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="Choose a username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={createPassword}
-                  onChange={(e) => setCreatePassword(e.target.value)}
-                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="Choose a password"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={createPasswordConfirm}
-                  onChange={(e) => setCreatePasswordConfirm(e.target.value)}
-                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="Confirm your password"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Your OpenRouter API Key
-                </label>
-                <input
-                  type="password"
-                  value={createApiKey}
-                  onChange={(e) => setCreateApiKey(e.target.value)}
-                  className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="sk-or-..."
-                />
-                <div className="bg-tafara-teal/10 border border-tafara-teal/30 rounded-lg p-3 mt-3">
-                  <p className="text-sm text-gray-300 mb-2">
-                    <strong className="text-tafara-cyan">Don't have an API key?</strong>
-                  </p>
-                  <ol className="text-sm text-gray-300 space-y-1 ml-4 list-decimal">
-                    <li>Go to{' '}
-                      <a 
-                        href="https://openrouter.ai" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-tafara-cyan hover:text-tafara-teal underline"
-                      >
-                        OpenRouter.ai
-                      </a>
-                    </li>
-                    <li>Sign up for free</li>
-                    <li>Go to "Keys" section</li>
-                    <li>Create a new API key</li>
-                    <li>Copy and paste it here</li>
-                  </ol>
-                </div>
-              </div>
-              <button
-                onClick={handleCreateAccount}
-                className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
-              >
-                Create Account
-              </button>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className={`min-h-screen flex items-center justify-center p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
-        <div className={`max-w-md w-full backdrop-blur-sm rounded-xl p-8 ${
-          darkMode 
-            ? 'bg-gray-900/50 border border-red-500/30' 
-            : 'bg-tafara-blue/30 border border-tafara-teal/30'
-        }`}>
-          <div className="flex justify-between items-center mb-6">
-            <Link href="/" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
-              ← Back to Home
-            </Link>
-            <button
-              onClick={toggleDarkMode}
-              className="text-2xl"
-            >
-              {darkMode ? '🌙' : '☀️'}
-            </button>
-          </div>
-          
-          <h1 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Login</h1>
-          
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                placeholder="Enter username"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                placeholder="Enter password"
-              />
-            </div>
-            <button
-              onClick={handleLogin}
-              className="w-full py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
-            >
-              Login
-            </button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-tafara-teal/30"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-tafara-blue/30 text-gray-400">or</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowCreateAccount(true)}
-              className="w-full py-3 px-4 border-2 border-tafara-teal rounded-lg font-semibold text-tafara-teal hover:bg-tafara-teal/10 transition-all"
-            >
-              Create Account
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const dm = darkMode
 
   if (showChat) {
-    return <ChatInterface config={config} apiKey={apiKey} onBack={() => setShowChat(false)} darkMode={darkMode} />
+    return <ChatInterface config={config} onBack={() => setShowChat(false)} darkMode={dm} />
   }
 
   return (
-    <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+    <div className={`min-h-screen p-6 ${dm ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <Link href="/hub" className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
+          <Link href="/hub" className={dm ? 'text-red-500 hover:text-red-400' : 'text-tafara-cyan hover:text-tafara-teal'}>
             ← Back to Hub
           </Link>
           <div className="flex gap-4 items-center">
-            <button
-              onClick={toggleDarkMode}
-              className={`px-4 py-2 rounded-lg border-2 transition-all ${
-                darkMode 
-                  ? 'border-red-500 bg-red-500/20 text-red-400' 
-                  : 'border-tafara-teal bg-tafara-teal/20 text-tafara-cyan'
-              }`}
-            >
-              {darkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            <button onClick={toggleDarkMode}
+              className={`px-4 py-2 rounded-lg border-2 transition-all ${dm ? 'border-red-500 bg-red-500/20 text-red-400' : 'border-tafara-teal bg-tafara-teal/20 text-tafara-cyan'}`}>
+              {dm ? '🌙 Dark' : '☀️ Light'}
             </button>
-            <button
-              onClick={() => {
-                setIsAuthenticated(false)
-                setApiKey('')
-                setCurrentUser('')
-                setSavedConfigs([])
-                localStorage.removeItem('tafara-apikey')
-                localStorage.removeItem('tafara-username')
-              }}
-              className="text-gray-400 hover:text-red-400"
-            >
+            <button onClick={async () => {
+              await supabase.auth.signOut()
+              localStorage.removeItem('tafara-username')
+              localStorage.removeItem('tafara-apikey')
+              router.push('/login')
+            }} className="text-gray-400 hover:text-red-400">
               Logout
             </button>
           </div>
         </div>
 
-        <h1 className={`text-4xl font-bold mb-8 ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>Build Your AI</h1>
+        <h1 className={`text-4xl font-bold mb-8 ${dm ? 'text-red-500' : 'text-tafara-cyan'}`}>Build Your AI</h1>
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Configuration Panel */}
-          <div className={`backdrop-blur-sm rounded-xl p-8 ${
-            darkMode 
-              ? 'bg-gray-900/50 border border-red-500/30' 
-              : 'bg-tafara-blue/30 border border-tafara-teal/30'
-          }`}>
-            <h2 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-red-400' : 'text-white'}`}>Configuration</h2>
-            
+          <div className={`backdrop-blur-sm rounded-xl p-8 ${dm ? 'bg-gray-900/50 border border-red-500/30' : 'bg-tafara-blue/30 border border-tafara-teal/30'}`}>
+            <h2 className={`text-2xl font-bold mb-6 ${dm ? 'text-red-400' : 'text-white'}`}>Configuration</h2>
             <div className="space-y-6">
+              {/* AI Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  AI Name
-                </label>
-                <input
-                  type="text"
-                  value={config.name}
-                  onChange={(e) => setConfig({...config, name: e.target.value})}
+                <label className="block text-sm font-medium text-gray-300 mb-2">AI Name</label>
+                <input type="text" value={config.name} onChange={(e) => setConfig({...config, name: e.target.value})}
                   className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="e.g., My Study Buddy"
-                />
+                  placeholder="e.g., My Study Buddy" />
               </div>
 
+              {/* Avatar */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  AI Avatar
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">AI Avatar</label>
                 <div className="space-y-3">
                   <div className="flex gap-2 flex-wrap">
                     {['🤖', '🧠', '⭐', '🎨', '💡', '🚀', '🔮', '👾', '🦾', '💬'].map(emoji => (
-                      <button
-                        key={emoji}
-                        onClick={() => setConfig({...config, avatar: emoji})}
-                        className={`text-3xl p-3 rounded-lg border-2 transition-all ${
-                          config.avatar === emoji 
-                            ? 'border-tafara-teal bg-tafara-teal/20' 
-                            : 'border-tafara-teal/30 hover:border-tafara-teal/50'
-                        }`}
-                      >
+                      <button key={emoji} onClick={() => setConfig({...config, avatar: emoji})}
+                        className={`text-3xl p-3 rounded-lg border-2 transition-all ${config.avatar === emoji ? 'border-tafara-teal bg-tafara-teal/20' : 'border-tafara-teal/30 hover:border-tafara-teal/50'}`}>
                         {emoji}
                       </button>
                     ))}
                   </div>
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Or upload your own:</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          const reader = new FileReader()
-                          reader.onload = (event) => {
-                            setConfig({...config, avatar: event.target?.result as string})
-                          }
-                          reader.readAsDataURL(file)
-                        }
-                      }}
-                      className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30"
-                    />
+                    <input type="file" accept="image/*" onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = (event) => setConfig({...config, avatar: event.target?.result as string})
+                        reader.readAsDataURL(file)
+                      }
+                    }} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30" />
                   </div>
-                  {config.avatar && !['🤖', '🧠', '⭐', '🎨', '💡', '🚀', '🔮', '👾', '🦾', '💬'].includes(config.avatar) && (
+                  {config.avatar && !['🤖','🧠','⭐','🎨','💡','🚀','🔮','👾','🦾','💬'].includes(config.avatar) && (
                     <div className="flex items-center gap-2">
                       <img src={config.avatar} alt="Avatar preview" className="w-12 h-12 rounded-full object-cover" />
                       <span className="text-xs text-gray-400">Custom avatar uploaded</span>
@@ -491,199 +141,108 @@ export default function Builder() {
                 </div>
               </div>
 
+              {/* Background */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Chat Background
-                </label>
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onload = (event) => {
-                          setConfig({...config, background: event.target?.result as string})
-                        }
-                        reader.readAsDataURL(file)
-                      }
-                    }}
-                    className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30"
-                  />
-                  {config.background && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <div 
-                        className="w-20 h-12 rounded border border-tafara-teal/30 bg-cover bg-center" 
-                        style={{backgroundImage: `url(${config.background})`}}
-                      ></div>
-                      <button
-                        onClick={() => setConfig({...config, background: ''})}
-                        className="text-xs text-red-400 hover:text-red-300"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Chat Background</label>
+                <input type="file" accept="image/*" onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    const reader = new FileReader()
+                    reader.onload = (event) => setConfig({...config, background: event.target?.result as string})
+                    reader.readAsDataURL(file)
+                  }
+                }} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-tafara-teal/20 file:text-tafara-cyan hover:file:bg-tafara-teal/30" />
+                {config.background && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="w-20 h-12 rounded border border-tafara-teal/30 bg-cover bg-center" style={{backgroundImage: `url(${config.background})`}}></div>
+                    <button onClick={() => setConfig({...config, background: ''})} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                  </div>
+                )}
               </div>
 
+              {/* Personality */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Personality
-                </label>
-                <input
-                  type="text"
-                  value={config.personality}
-                  onChange={(e) => setConfig({...config, personality: e.target.value})}
+                <label className="block text-sm font-medium text-gray-300 mb-2">Personality</label>
+                <input type="text" value={config.personality} onChange={(e) => setConfig({...config, personality: e.target.value})}
                   className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-                  placeholder="e.g., friendly and encouraging"
-                />
+                  placeholder="e.g., friendly and encouraging" />
               </div>
 
+              {/* Instructions */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Instructions (What should your AI do?)
-                </label>
-                <textarea
-                  value={config.instructions}
-                  onChange={(e) => setConfig({...config, instructions: e.target.value})}
+                <label className="block text-sm font-medium text-gray-300 mb-2">Instructions</label>
+                <textarea value={config.instructions} onChange={(e) => setConfig({...config, instructions: e.target.value})}
                   className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none h-32"
-                  placeholder="e.g., Help me study for exams by quizzing me and explaining concepts"
-                />
+                  placeholder="e.g., Help me study for exams by quizzing me" />
               </div>
 
+              {/* Model Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  AI Model
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">AI Model</label>
                 <div className="space-y-3">
-                  <ModelOption
-                    value="openrouter/aurora-alpha"
-                    name="Aurora Alpha"
-                    description="Advanced reasoning and creative tasks"
-                    selected={config.model === "openrouter/aurora-alpha"}
-                    onClick={() => setConfig({...config, model: "openrouter/aurora-alpha"})}
-                  />
-                  <ModelOption
-                    value="stepfun/step-3.5-flash:free"
-                    name="Step 3.5 Flash"
-                    description="Lightning fast responses, great for quick tasks"
-                    selected={config.model === "stepfun/step-3.5-flash:free"}
-                    onClick={() => setConfig({...config, model: "stepfun/step-3.5-flash:free"})}
-                  />
-                  <ModelOption
-                    value="arcee-ai/trinity-large-preview:free"
-                    name="Trinity Large Preview"
-                    description="Powerful model for complex reasoning"
-                    selected={config.model === "arcee-ai/trinity-large-preview:free"}
-                    onClick={() => setConfig({...config, model: "arcee-ai/trinity-large-preview:free"})}
-                  />
-                  <ModelOption
-                    value="liquid/lfm-2.5-1.2b-thinking:free"
-                    name="LFM 2.5 Thinking"
-                    description="Advanced thinking and problem-solving"
-                    selected={config.model === "liquid/lfm-2.5-1.2b-thinking:free"}
-                    onClick={() => setConfig({...config, model: "liquid/lfm-2.5-1.2b-thinking:free"})}
-                  />
-                  <ModelOption
-                    value="liquid/lfm-2.5-1.2b-instruct:free"
-                    name="LFM 2.5 Instruct"
-                    description="Great for following detailed instructions"
-                    selected={config.model === "liquid/lfm-2.5-1.2b-instruct:free"}
-                    onClick={() => setConfig({...config, model: "liquid/lfm-2.5-1.2b-instruct:free"})}
-                  />
-                  <ModelOption
-                    value="nvidia/nemotron-3-nano-30b-a3b:free"
-                    name="Nemotron 3 Nano 30B"
-                    description="NVIDIA's efficient powerhouse model"
-                    selected={config.model === "nvidia/nemotron-3-nano-30b-a3b:free"}
-                    onClick={() => setConfig({...config, model: "nvidia/nemotron-3-nano-30b-a3b:free"})}
-                  />
-                  <ModelOption
-                    value="arcee-ai/trinity-mini:free"
-                    name="Trinity Mini"
-                    description="Compact and fast for everyday tasks"
-                    selected={config.model === "arcee-ai/trinity-mini:free"}
-                    onClick={() => setConfig({...config, model: "arcee-ai/trinity-mini:free"})}
-                  />
-                  <ModelOption
-                    value="nvidia/nemotron-nano-12b-v2-vl:free"
-                    name="Nemotron Nano 12B VL"
-                    description="Visual understanding and image analysis"
-                    selected={config.model === "nvidia/nemotron-nano-12b-v2-vl:free"}
-                    onClick={() => setConfig({...config, model: "nvidia/nemotron-nano-12b-v2-vl:free"})}
-                  />
-                  <ModelOption
-                    value="qwen/qwen3-vl-30b-a3b-thinking"
-                    name="Qwen3 VL 30B Thinking"
-                    description="Visual + reasoning for complex analysis"
-                    selected={config.model === "qwen/qwen3-vl-30b-a3b-thinking"}
-                    onClick={() => setConfig({...config, model: "qwen/qwen3-vl-30b-a3b-thinking"})}
-                  />
-                  <ModelOption
-                    value="qwen/qwen3-vl-235b-a22b-thinking"
-                    name="Qwen3 VL 235B Thinking"
-                    description="Most powerful visual reasoning model"
-                    selected={config.model === "qwen/qwen3-vl-235b-a22b-thinking"}
-                    onClick={() => setConfig({...config, model: "qwen/qwen3-vl-235b-a22b-thinking"})}
-                  />
+                  {[
+                    { value: 'openrouter/aurora-alpha', name: 'Aurora Alpha', desc: 'Advanced reasoning and creative tasks' },
+                    { value: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash', desc: 'Lightning fast responses' },
+                    { value: 'arcee-ai/trinity-large-preview:free', name: 'Trinity Large Preview', desc: 'Powerful for complex reasoning' },
+                    { value: 'liquid/lfm-2.5-1.2b-thinking:free', name: 'LFM 2.5 Thinking', desc: 'Advanced thinking and problem-solving' },
+                    { value: 'liquid/lfm-2.5-1.2b-instruct:free', name: 'LFM 2.5 Instruct', desc: 'Great for following detailed instructions' },
+                    { value: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'Nemotron 3 Nano 30B', desc: "NVIDIA's efficient powerhouse" },
+                    { value: 'arcee-ai/trinity-mini:free', name: 'Trinity Mini', desc: 'Compact and fast for everyday tasks' },
+                    { value: 'nvidia/nemotron-nano-12b-v2-vl:free', name: 'Nemotron Nano 12B VL', desc: 'Visual understanding and image analysis' },
+                    { value: 'qwen/qwen3-vl-30b-a3b-thinking', name: 'Qwen3 VL 30B Thinking', desc: 'Visual + reasoning for complex analysis' },
+                    { value: 'qwen/qwen3-vl-235b-a22b-thinking', name: 'Qwen3 VL 235B Thinking', desc: 'Most powerful visual reasoning model' },
+                  ].map(model => (
+                    <button key={model.value} onClick={() => setConfig({...config, model: model.value})}
+                      className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${config.model === model.value ? 'border-tafara-teal bg-tafara-teal/20' : 'border-tafara-teal/30 bg-tafara-dark/30 hover:border-tafara-teal/50'}`}>
+                      <div className="font-semibold text-base text-white mb-1">{model.name}</div>
+                      <div className="text-xs text-gray-400">{model.desc}</div>
+                    </button>
+                  ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-3">
-                  ✨ Hand-picked quality models
-                </p>
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={saveConfig}
-                  className="flex-1 py-3 px-4 bg-tafara-teal/20 border border-tafara-teal/50 rounded-lg text-white hover:bg-tafara-teal/30 transition-all"
-                >
-                  Save Configuration
-                </button>
-                <button
-                  onClick={() => setShowChat(true)}
-                  className="flex-1 py-3 px-4 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all"
-                >
-                  Test Your AI
-                </button>
+                <p className="text-xs text-gray-400 mt-3">✨ Hand-picked quality models</p>
               </div>
             </div>
           </div>
 
-          {/* Saved Configurations */}
-          <div className="bg-tafara-blue/30 backdrop-blur-sm border border-tafara-teal/30 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-6">Saved AIs</h2>
-            
-            {savedConfigs.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">
-                No saved configurations yet. Create and save your first AI!
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {savedConfigs.map((cfg, index) => (
-                  <div 
-                    key={index}
-                    className="bg-tafara-dark/50 border border-tafara-teal/20 rounded-lg p-4 hover:border-tafara-teal/50 transition-all"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-lg font-semibold text-tafara-cyan">{cfg.name}</h3>
-                      <button
-                        onClick={() => deleteConfig(index)}
-                        className="text-red-400 hover:text-red-300 text-sm"
-                      >
-                        Delete
-                      </button>
+          {/* Right Panel */}
+          <div className="space-y-6">
+            {/* Actions */}
+            <div className={`backdrop-blur-sm rounded-xl p-6 ${dm ? 'bg-gray-900/50 border border-red-500/30' : 'bg-tafara-blue/30 border border-tafara-teal/30'}`}>
+              <h2 className={`text-xl font-bold mb-4 ${dm ? 'text-red-400' : 'text-white'}`}>Actions</h2>
+              <div className="space-y-3">
+                <button onClick={() => setShowChat(true)}
+                  className={`w-full py-3 rounded-lg font-semibold transition-all ${dm ? 'bg-gradient-to-r from-red-600 to-red-500 text-white hover:shadow-xl hover:shadow-red-500/50' : 'bg-gradient-to-r from-tafara-teal to-tafara-cyan text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50'}`}>
+                  💬 Test Your AI
+                </button>
+                <button onClick={saveConfig}
+                  className={`w-full py-3 rounded-lg font-semibold border-2 transition-all ${dm ? 'border-red-500 text-red-400 hover:bg-red-500/10' : 'border-tafara-teal text-tafara-cyan hover:bg-tafara-teal/10'}`}>
+                  💾 Save Configuration
+                </button>
+              </div>
+            </div>
+
+            {/* Saved Configs */}
+            {savedConfigs.length > 0 && (
+              <div className={`backdrop-blur-sm rounded-xl p-6 ${dm ? 'bg-gray-900/50 border border-red-500/30' : 'bg-tafara-blue/30 border border-tafara-teal/30'}`}>
+                <h2 className={`text-xl font-bold mb-4 ${dm ? 'text-red-400' : 'text-white'}`}>Saved AIs</h2>
+                <div className="space-y-3">
+                  {savedConfigs.map((saved, index) => (
+                    <div key={index} className={`flex items-center justify-between p-3 rounded-lg ${dm ? 'bg-gray-800/50 border border-red-500/20' : 'bg-tafara-dark/30 border border-tafara-teal/20'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{saved.avatar && !saved.avatar.startsWith('data:') ? saved.avatar : '🤖'}</span>
+                        <span className={`font-medium ${dm ? 'text-red-300' : 'text-white'}`}>{saved.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setConfig(saved)} className={`text-xs px-3 py-1 rounded ${dm ? 'text-red-400 border border-red-500/30 hover:bg-red-500/10' : 'text-tafara-cyan border border-tafara-teal/30 hover:bg-tafara-teal/10'}`}>
+                          Load
+                        </button>
+                        <button onClick={() => deleteConfig(index)} className="text-xs px-3 py-1 rounded text-red-400 border border-red-700/30 hover:bg-red-900/20">
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-400 mb-3">{cfg.personality}</p>
-                    <button
-                      onClick={() => loadConfig(cfg)}
-                      className="w-full py-2 px-4 bg-tafara-teal/20 border border-tafara-teal/50 rounded-lg text-white text-sm hover:bg-tafara-teal/30 transition-all"
-                    >
-                      Load Configuration
-                    </button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -693,10 +252,11 @@ export default function Builder() {
   )
 }
 
-function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig, apiKey: string, onBack: () => void, darkMode: boolean }) {
+function ChatInterface({ config, onBack, darkMode }: { config: AIConfig, onBack: () => void, darkMode: boolean }) {
   const [messages, setMessages] = useState<{role: string, content: string}[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const dm = darkMode
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -707,90 +267,58 @@ function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig,
     setIsLoading(true)
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+
+      const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://tafara-ai.vercel.app',
-          'X-Title': 'Tafara.ai'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: config.model,
-          messages: [
-            { 
-              role: 'system', 
-              content: `You are ${config.name}. Your personality is ${config.personality}. ${config.instructions}` 
-            },
-            ...messages,
-            userMessage
-          ]
+          messages: [...messages, userMessage],
+          config,
+          sessionToken: session.access_token
         })
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.error?.message || 'API request failed')
+        const err = await response.json()
+        throw new Error(err.error || 'Request failed')
       }
 
       const data = await response.json()
-      
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Invalid API response format')
-      }
-
-      const aiMessage = { 
-        role: 'assistant', 
-        content: data.choices[0].message.content 
-      }
-      setMessages(prev => [...prev, aiMessage])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
     } catch (error) {
-      console.error('Error:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Sorry, there was an error: ${errorMessage}. Please check your API key and try again.` 
-      }])
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, there was an error: ${msg}` }])
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+    <div className={`min-h-screen p-6 ${dm ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <button onClick={onBack} className={darkMode ? "text-red-500 hover:text-red-400" : "text-tafara-cyan hover:text-tafara-teal"}>
+          <button onClick={onBack} className={dm ? 'text-red-500 hover:text-red-400' : 'text-tafara-cyan hover:text-tafara-teal'}>
             ← Back to Builder
           </button>
-          <h1 className={`text-2xl font-bold ${darkMode ? 'text-red-500' : 'text-tafara-cyan'}`}>{config.name}</h1>
+          <h1 className={`text-2xl font-bold ${dm ? 'text-red-500' : 'text-tafara-cyan'}`}>{config.name}</h1>
         </div>
 
-        <div 
-          className={`backdrop-blur-sm rounded-xl p-6 mb-4 bg-cover bg-center ${
-            darkMode 
-              ? 'bg-gray-900/50 border border-red-500/30' 
-              : 'bg-tafara-blue/30 border border-tafara-teal/30'
-          }`}
+        <div className={`rounded-xl p-6 mb-4 overflow-y-auto bg-cover bg-center ${dm ? 'bg-gray-900/50 border-2 border-red-500/30' : 'bg-tafara-blue/30 border-2 border-tafara-teal/30'}`}
           style={{
-            height: '60vh', 
-            overflowY: 'auto',
-            backgroundImage: config.background 
-              ? darkMode 
-                ? `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${config.background})`
-                : `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})`
+            height: '60vh',
+            backgroundImage: config.background
+              ? dm ? `linear-gradient(rgba(0,0,0,0.85),rgba(0,0,0,0.85)),url(${config.background})`
+                   : `linear-gradient(rgba(15,31,58,0.85),rgba(15,31,58,0.85)),url(${config.background})`
               : 'none'
-          }}
-        >
+          }}>
           {messages.length === 0 ? (
-            <div className={`text-center mt-20 ${darkMode ? 'text-red-400' : 'text-gray-400'}`}>
+            <div className={`text-center mt-20 ${dm ? 'text-red-400' : 'text-gray-400'}`}>
               <div className="text-6xl mb-4">
-                {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                  <img src={config.avatar} alt="AI Avatar" className="w-20 h-20 rounded-full mx-auto object-cover" />
-                ) : (
-                  <span>{config.avatar}</span>
-                )}
+                {config.avatar && (config.avatar.startsWith('data:') || config.avatar.startsWith('http'))
+                  ? <img src={config.avatar} alt="AI" className="w-20 h-20 rounded-full mx-auto object-cover" />
+                  : <span>{config.avatar}</span>}
               </div>
               <p className="text-xl mb-2">Start chatting with {config.name}!</p>
               <p className="text-sm">Your AI is ready to help.</p>
@@ -801,25 +329,15 @@ function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig,
                 <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'assistant' && (
                     <div className="flex-shrink-0">
-                      {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                        <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
-                          darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-                        }`}>
-                          {config.avatar}
-                        </div>
-                      )}
+                      {config.avatar && (config.avatar.startsWith('data:') || config.avatar.startsWith('http'))
+                        ? <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
+                        : <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${dm ? 'bg-red-500/20' : 'bg-tafara-teal/20'}`}>{config.avatar}</div>}
                     </div>
                   )}
                   <div className={`max-w-[75%] px-4 py-3 rounded-lg ${
-                    msg.role === 'user' 
-                      ? darkMode 
-                        ? 'bg-red-500/30 border border-red-500 text-red-100'
-                        : 'bg-tafara-teal text-tafara-dark'
-                      : darkMode
-                        ? 'bg-black/70 border border-red-500/30 text-red-400'
-                        : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
+                    msg.role === 'user'
+                      ? dm ? 'bg-red-500/30 border border-red-500 text-red-100' : 'bg-tafara-teal text-tafara-dark'
+                      : dm ? 'bg-black/70 border border-red-500/30 text-red-400' : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
                   }`}>
                     {msg.content}
                   </div>
@@ -827,22 +345,10 @@ function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig,
               ))}
               {isLoading && (
                 <div className="flex gap-3 justify-start">
-                  <div className="flex-shrink-0">
-                    {config.avatar.startsWith('data:') || config.avatar.startsWith('http') ? (
-                      <img src={config.avatar} alt="AI" className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${
-                        darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-                      }`}>
-                        {config.avatar}
-                      </div>
-                    )}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${dm ? 'bg-red-500/20' : 'bg-tafara-teal/20'}`}>
+                    {config.avatar && !config.avatar.startsWith('data:') ? config.avatar : '🤖'}
                   </div>
-                  <div className={`px-4 py-3 rounded-lg ${
-                    darkMode 
-                      ? 'bg-black/70 border border-red-500/30 text-red-400'
-                      : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
-                  }`}>
+                  <div className={`px-4 py-3 rounded-lg ${dm ? 'bg-black/70 border border-red-500/30 text-red-400' : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'}`}>
                     Thinking...
                   </div>
                 </div>
@@ -852,46 +358,16 @@ function ChatInterface({ config, apiKey, onBack, darkMode }: { config: AIConfig,
         </div>
 
         <div className="flex gap-4">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            className="flex-1 px-4 py-3 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
-            placeholder="Type your message..."
-            disabled={isLoading}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading}
-            className="px-6 py-3 bg-gradient-to-r from-tafara-teal to-tafara-cyan rounded-lg font-semibold text-tafara-dark hover:shadow-xl hover:shadow-tafara-teal/50 transition-all disabled:opacity-50"
-          >
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage()}
+            className={`flex-1 px-4 py-3 rounded-lg focus:outline-none ${dm ? 'bg-gray-900/50 border-2 border-red-500/30 text-red-400 focus:border-red-500' : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white focus:border-tafara-teal'}`}
+            placeholder="Type your message..." disabled={isLoading} />
+          <button onClick={sendMessage} disabled={isLoading}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all disabled:opacity-50 ${dm ? 'bg-gradient-to-r from-red-600 to-red-500 text-white' : 'bg-gradient-to-r from-tafara-teal to-tafara-cyan text-tafara-dark'}`}>
             Send
           </button>
         </div>
       </div>
     </div>
-  )
-}
-
-function ModelOption({ value, name, description, selected, onClick }: { 
-  value: string
-  name: string
-  description: string
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all ${
-        selected 
-          ? 'border-tafara-teal bg-tafara-teal/20' 
-          : 'border-tafara-teal/30 bg-tafara-dark/30 hover:border-tafara-teal/50 hover:bg-tafara-dark/50'
-      }`}
-    >
-      <div className="font-semibold text-base text-white mb-1">{name}</div>
-      <div className="text-xs text-gray-400">{description}</div>
-    </button>
   )
 }
