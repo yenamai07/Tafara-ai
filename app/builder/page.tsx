@@ -23,7 +23,7 @@ const PRESET_ACCOUNTS = [
 ]
 
 // Your shared API key (for you and TheBree only)
-const SHARED_API_KEY = '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'
+const SHARED_API_KEY = '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'
 
 export default function Builder() {
   const [apiKey, setApiKey] = useState('')
@@ -40,7 +40,7 @@ export default function Builder() {
     name: 'My AI Assistant',
     personality: 'helpful and friendly',
     instructions: 'You are a helpful AI assistant.',
-    model: 'meta-llama/llama-3.2-3b-instruct:free'
+    model: 'openrouter/aurora-alpha'
   })
 
   const [savedConfigs, setSavedConfigs] = useState<AIConfig[]>([])
@@ -420,22 +420,26 @@ export default function Builder() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  AI Model (Free Models Only)
+                  AI Model
                 </label>
                 <select
                   value={config.model}
                   onChange={(e) => setConfig({...config, model: e.target.value})}
                   className="w-full px-4 py-2 bg-tafara-dark/50 border border-tafara-teal/30 rounded-lg text-white focus:border-tafara-teal focus:outline-none"
                 >
-                  <option value="meta-llama/llama-3.2-3b-instruct:free">Llama 3.2 3B (Fast & Free)</option>
-                  <option value="meta-llama/llama-3.2-1b-instruct:free">Llama 3.2 1B (Very Fast)</option>
-                  <option value="google/gemini-2.0-flash-exp:free">Gemini 2.0 Flash (Experimental)</option>
-                  <option value="google/gemini-flash-1.5:free">Gemini Flash 1.5 (Reliable)</option>
-                  <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 405B (Powerful)</option>
-                  <option value="microsoft/phi-3-medium-128k-instruct:free">Phi-3 Medium (Smart)</option>
+                  <option value="openrouter/aurora-alpha">Aurora Alpha</option>
+                  <option value="stepfun/step-3.5-flash:free">Step 3.5 Flash</option>
+                  <option value="arcee-ai/trinity-large-preview:free">Trinity Large Preview</option>
+                  <option value="liquid/lfm-2.5-1.2b-thinking:free">LFM 2.5 1.2B Thinking</option>
+                  <option value="liquid/lfm-2.5-1.2b-instruct:free">LFM 2.5 1.2B Instruct</option>
+                  <option value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 Nano 30B</option>
+                  <option value="arcee-ai/trinity-mini:free">Trinity Mini</option>
+                  <option value="nvidia/nemotron-nano-12b-v2-vl:free">Nemotron Nano 12B V2 VL</option>
+                  <option value="qwen/qwen3-vl-30b-a3b-thinking">Qwen3 VL 30B Thinking</option>
+                  <option value="qwen/qwen3-vl-235b-a22b-thinking">Qwen3 VL 235B Thinking</option>
                 </select>
                 <p className="text-xs text-gray-400 mt-2">
-                  ✨ All models are completely free on OpenRouter!
+                  ✨ Hand-picked quality models
                 </p>
               </div>
 
