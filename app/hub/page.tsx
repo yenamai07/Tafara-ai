@@ -27,33 +27,66 @@ export default function Hub() {
   const [currentUser, setCurrentUser] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
-    if (savedDarkMode) {
-      setDarkMode(savedDarkMode === 'true')
-    }
+    if (savedDarkMode) setDarkMode(savedDarkMode === 'true')
 
-    const savedUsername = localStorage.getItem('tafara-username')
-    const savedApiKey = localStorage.getItem('tafara-apikey')
+    ;(async () => {
+      let username = localStorage.getItem('tafara-username')
 
-    if (!savedApiKey || !savedUsername) {
-      router.push('/builder')
-      return
-    }
+      // If no username in localStorage, try to restore from Supabase session
+      if (!username) {
+        const { data: { session } } = await supabase.auth.getSession()
 
-    setCurrentUser(savedUsername)
+        if (!session) {
+          router.push('/login')
+          return
+        }
 
-    const userConfigs = localStorage.getItem(`tafara-configs-${savedUsername}`)
-    if (userConfigs) {
-      const configs = JSON.parse(userConfigs)
-      setMyAIs(configs.map((config: AIConfig, index: number) => ({
-        ...config,
-        id: `${savedUsername}-${index}`
-      })))
-    }
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('username, api_key, is_preset_account')
+          .eq('id', session.user.id)
+          .single()
 
-    loadCommunityAIs()
+        if (!profile) {
+          router.push('/login')
+          return
+        }
+
+        // Restore localStorage from Supabase
+        localStorage.setItem('tafara-username', profile.username)
+
+        if (profile.is_preset_account) {
+          const res = await fetch('/api/shared-key', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          })
+          const { key } = await res.json()
+          if (key) localStorage.setItem('tafara-apikey', key)
+        } else if (profile.api_key) {
+          localStorage.setItem('tafara-apikey', profile.api_key)
+        }
+
+        username = profile.username
+      }
+
+      setCurrentUser(username)
+
+      // Load user's AIs from localStorage
+      const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
+      if (userConfigs) {
+        const configs = JSON.parse(userConfigs)
+        setMyAIs(configs.map((config: AIConfig, index: number) => ({
+          ...config,
+          id: `${username}-${index}`
+        })))
+      }
+
+      setAuthChecked(true)
+      loadCommunityAIs()
+    })()
   }, [router])
 
   const loadCommunityAIs = async () => {
@@ -174,6 +207,15 @@ export default function Hub() {
     return matchesSearch && matchesCategory
   })
 
+  // Show nothing while auth is being checked to avoid flash of redirect
+  if (!authChecked) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
+        <div className={`text-xl ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>Loading...</div>
+      </div>
+    )
+  }
+
   return (
     <div className={`min-h-screen p-6 ${darkMode ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
       <div className="max-w-7xl mx-auto">
@@ -268,7 +310,6 @@ export default function Hub() {
             Community AIs
           </h2>
 
-          {/* Search and Filter */}
           <div className="mb-6 space-y-4">
             <input
               type="text"
@@ -289,9 +330,7 @@ export default function Hub() {
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
                     selectedCategory === cat
-                      ? darkMode
-                        ? 'bg-red-500 text-white'
-                        : 'bg-tafara-teal text-tafara-dark'
+                      ? darkMode ? 'bg-red-500 text-white' : 'bg-tafara-teal text-tafara-dark'
                       : darkMode
                         ? 'bg-gray-900/50 border border-red-500/30 text-red-400 hover:bg-red-500/20'
                         : 'bg-tafara-dark/30 border border-tafara-teal/30 text-gray-300 hover:bg-tafara-dark/50'
@@ -331,16 +370,7 @@ export default function Hub() {
 }
 
 function AICard({
-  ai,
-  darkMode,
-  onDelete,
-  onEdit,
-  onChat,
-  onPublish,
-  showDelete,
-  showPublish,
-  currentUser,
-  isModerator
+  ai, darkMode, onDelete, onEdit, onChat, onPublish, showDelete, showPublish, currentUser, isModerator
 }: {
   ai: AIConfig
   darkMode: boolean
@@ -373,30 +403,23 @@ function AICard({
           ? 'bg-gray-900/50 border-2 border-red-500/30 hover:border-red-500'
           : 'bg-tafara-blue/30 border-2 border-tafara-teal/30 hover:border-tafara-teal'
       }`}>
-        {/* Avatar */}
         <div className="flex justify-center mb-4">
           {ai.avatar && (ai.avatar.startsWith('data:') || ai.avatar.startsWith('http')) ? (
             <img src={ai.avatar} alt={ai.name} className="w-20 h-20 rounded-full object-cover" />
           ) : (
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${
-              darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
-            }`}>
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'}`}>
               {ai.avatar || '🤖'}
             </div>
           )}
         </div>
 
-        {/* Name */}
         <h3 className={`text-xl font-bold text-center mb-2 ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
           {ai.name}
         </h3>
-
-        {/* Personality */}
         <p className={`text-sm text-center mb-2 ${darkMode ? 'text-red-300/70' : 'text-gray-400'}`}>
           {ai.personality}
         </p>
 
-        {/* Creator */}
         {ai.creatorUsername && (
           <p className={`text-xs text-center mb-4 ${darkMode ? 'text-red-400/50' : 'text-gray-500'}`}>
             {isModerator && ai.isAnonymous ? (
@@ -407,7 +430,6 @@ function AICard({
           </p>
         )}
 
-        {/* Actions */}
         <div className="space-y-2">
           <button
             onClick={onChat}
@@ -436,18 +458,12 @@ function AICard({
           {showDelete && (
             <div className="flex gap-2">
               {onEdit && (
-                <button
-                  onClick={onEdit}
-                  className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-gray-700/30 border-gray-600 text-gray-300 hover:bg-gray-700/50"
-                >
+                <button onClick={onEdit} className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-gray-700/30 border-gray-600 text-gray-300 hover:bg-gray-700/50">
                   ✏️ Edit
                 </button>
               )}
               {onDelete && (
-                <button
-                  onClick={onDelete}
-                  className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-red-900/30 border-red-700 text-red-400 hover:bg-red-900/50"
-                >
+                <button onClick={onDelete} className="flex-1 py-2 rounded-lg font-medium text-sm border transition-all bg-red-900/30 border-red-700 text-red-400 hover:bg-red-900/50">
                   🗑️ Delete
                 </button>
               )}
@@ -456,13 +472,10 @@ function AICard({
         </div>
       </div>
 
-      {/* Publish Dialog */}
       {showPublishDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50" onClick={() => setShowPublishDialog(false)}>
           <div
-            className={`max-w-md w-full rounded-xl p-6 ${
-              darkMode ? 'bg-gray-900 border-2 border-red-500' : 'bg-tafara-blue border-2 border-tafara-teal'
-            }`}
+            className={`max-w-md w-full rounded-xl p-6 ${darkMode ? 'bg-gray-900 border-2 border-red-500' : 'bg-tafara-blue border-2 border-tafara-teal'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-red-400' : 'text-tafara-cyan'}`}>
@@ -471,17 +484,11 @@ function AICard({
 
             <div className="space-y-4 mb-6">
               <div>
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>
-                  Category
-                </label>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>Category</label>
                 <select
                   value={publishCategory}
                   onChange={(e) => setPublishCategory(e.target.value)}
-                  className={`w-full px-4 py-2 rounded-lg ${
-                    darkMode
-                      ? 'bg-gray-800 border border-red-500/30 text-red-300'
-                      : 'bg-tafara-dark/50 border border-tafara-teal/30 text-white'
-                  }`}
+                  className={`w-full px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-800 border border-red-500/30 text-red-300' : 'bg-tafara-dark/50 border border-tafara-teal/30 text-white'}`}
                 >
                   <option value="general">General</option>
                   <option value="study">Study</option>
@@ -493,33 +500,18 @@ function AICard({
               </div>
 
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="anonymous"
-                  checked={publishAnonymous}
-                  onChange={(e) => setPublishAnonymous(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="anonymous" className={`text-sm ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>
-                  Publish as Anonymous
-                </label>
+                <input type="checkbox" id="anonymous" checked={publishAnonymous} onChange={(e) => setPublishAnonymous(e.target.checked)} className="w-4 h-4" />
+                <label htmlFor="anonymous" className={`text-sm ${darkMode ? 'text-red-300' : 'text-gray-300'}`}>Publish as Anonymous</label>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowPublishDialog(false)}
-                className="flex-1 py-2 rounded-lg border border-gray-600 text-gray-400 hover:bg-gray-700/30"
-              >
+              <button onClick={() => setShowPublishDialog(false)} className="flex-1 py-2 rounded-lg border border-gray-600 text-gray-400 hover:bg-gray-700/30">
                 Cancel
               </button>
               <button
                 onClick={handlePublish}
-                className={`flex-1 py-2 rounded-lg font-semibold ${
-                  darkMode
-                    ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'bg-tafara-teal text-tafara-dark hover:bg-tafara-cyan'
-                }`}
+                className={`flex-1 py-2 rounded-lg font-semibold ${darkMode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-tafara-teal text-tafara-dark hover:bg-tafara-cyan'}`}
               >
                 Publish
               </button>
