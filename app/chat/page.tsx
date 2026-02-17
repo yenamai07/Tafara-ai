@@ -25,30 +25,24 @@ function ChatPageContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
-  const [apiKey, setApiKey] = useState('')
   const [config, setConfig] = useState<AIConfig | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
 
   useEffect(() => {
-    // Load dark mode
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
     if (savedDarkMode) {
       setDarkMode(savedDarkMode === 'true')
     }
 
-    // Check authentication
     const savedUsername = localStorage.getItem('tafara-username')
-    const savedApiKey = localStorage.getItem('tafara-apikey')
-    
-    if (!savedApiKey || !savedUsername) {
+
+    if (!savedUsername) {
       router.push('/builder')
       return
     }
 
     setCurrentUser(savedUsername)
-    setApiKey(savedApiKey)
 
-    // Load AI config
     if (aiId) {
       loadAI(aiId, savedUsername)
     } else {
@@ -57,23 +51,18 @@ function ChatPageContent() {
   }, [aiId, router])
 
   const loadAI = async (id: string, username: string) => {
-    // Check if it's a user's AI (format: username-index)
     if (id.startsWith(username)) {
       const index = parseInt(id.split('-')[1])
       const userConfigs = localStorage.getItem(`tafara-configs-${username}`)
       if (userConfigs) {
         const configs = JSON.parse(userConfigs)
         if (configs[index]) {
-          setConfig({
-            ...configs[index],
-            id: id
-          })
+          setConfig({ ...configs[index], id })
           return
         }
       }
     }
 
-    // Otherwise, load from community (Supabase)
     try {
       const { data, error } = await supabase
         .from('public_ais')
@@ -111,50 +100,40 @@ function ChatPageContent() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      // Get the current session token to send to our API route
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        throw new Error('Not authenticated')
+      }
+
+      // Call our own API route — never touches OpenRouter directly from the client
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://tafara-ai.vercel.app',
-          'X-Title': 'Tafara.ai'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: config.model,
-          messages: [
-            { 
-              role: 'system', 
-              content: `You are ${config.name}. Your personality is ${config.personality}. ${config.instructions}` 
-            },
-            ...messages,
-            userMessage
-          ]
+          messages: [...messages, userMessage],
+          config,
+          sessionToken: session.access_token
         })
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('API Error:', errorData)
-        throw new Error(errorData.error?.message || 'API request failed')
-      }
-
       const data = await response.json()
-      
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Invalid API response format')
+
+      if (!response.ok) {
+        throw new Error(data.error || 'API request failed')
       }
 
-      const aiMessage = { 
-        role: 'assistant', 
-        content: data.choices[0].message.content 
-      }
-      setMessages(prev => [...prev, aiMessage])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
+
     } catch (error) {
       console.error('Error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Sorry, there was an error: ${errorMessage}. Please check your API key and try again.` 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Sorry, there was an error: ${errorMessage}. Please check your API key and try again.`
       }])
     } finally {
       setIsLoading(false)
@@ -179,11 +158,11 @@ function ChatPageContent() {
       }`}>
         {showSidebar && (
           <>
-            <Link 
+            <Link
               href="/hub"
               className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode 
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30' 
+                darkMode
+                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
                   : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
               }`}
               title="Hub"
@@ -191,11 +170,11 @@ function ChatPageContent() {
               <span className="text-2xl">🏠</span>
             </Link>
 
-            <Link 
+            <Link
               href="/builder"
               className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode 
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30' 
+                darkMode
+                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
                   : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
               }`}
               title="Builder"
@@ -210,8 +189,8 @@ function ChatPageContent() {
                 localStorage.setItem('tafara-darkmode-global', String(newMode))
               }}
               className={`p-3 rounded-lg transition-all hover:scale-110 ${
-                darkMode 
-                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30' 
+                darkMode
+                  ? 'bg-red-500/20 border-2 border-red-500/50 hover:bg-red-500/30'
                   : 'bg-tafara-teal/20 border-2 border-tafara-teal/50 hover:bg-tafara-teal/30'
               }`}
               title="Toggle Dark Mode"
@@ -240,8 +219,8 @@ function ChatPageContent() {
       <button
         onClick={() => setShowSidebar(!showSidebar)}
         className={`fixed top-4 left-4 z-50 p-2 rounded-lg ${
-          darkMode 
-            ? 'bg-red-500/30 border border-red-500 text-red-400' 
+          darkMode
+            ? 'bg-red-500/30 border border-red-500 text-red-400'
             : 'bg-tafara-teal/30 border border-tafara-teal text-tafara-cyan'
         }`}
       >
@@ -274,15 +253,15 @@ function ChatPageContent() {
         </div>
 
         {/* Chat Messages */}
-        <div 
+        <div
           className={`flex-1 rounded-xl p-6 mb-4 overflow-y-auto bg-cover bg-center ${
-            darkMode 
-              ? 'bg-gray-900/50 border-2 border-red-500/30' 
+            darkMode
+              ? 'bg-gray-900/50 border-2 border-red-500/30'
               : 'bg-tafara-blue/30 border-2 border-tafara-teal/30'
           }`}
           style={{
-            backgroundImage: config.background 
-              ? darkMode 
+            backgroundImage: config.background
+              ? darkMode
                 ? `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url(${config.background})`
                 : `linear-gradient(rgba(15, 31, 58, 0.85), rgba(15, 31, 58, 0.85)), url(${config.background})`
               : 'none'
@@ -318,8 +297,8 @@ function ChatPageContent() {
                     </div>
                   )}
                   <div className={`max-w-[75%] px-4 py-3 rounded-lg ${
-                    msg.role === 'user' 
-                      ? darkMode 
+                    msg.role === 'user'
+                      ? darkMode
                         ? 'bg-red-500/30 border border-red-500 text-red-100'
                         : 'bg-tafara-teal text-tafara-dark'
                       : darkMode
@@ -344,7 +323,7 @@ function ChatPageContent() {
                     )}
                   </div>
                   <div className={`px-4 py-3 rounded-lg ${
-                    darkMode 
+                    darkMode
                       ? 'bg-black/70 border border-red-500/30 text-red-400'
                       : 'bg-tafara-dark/70 border border-tafara-teal/30 text-white'
                   }`}>
