@@ -372,13 +372,13 @@ function AICard({
       }`}>
         {/* Avatar */}
         <div className="flex justify-center mb-4">
-          {ai.avatar.startsWith('data:') || ai.avatar.startsWith('http') ? (
+          {ai.avatar && (ai.avatar.startsWith('data:') || ai.avatar.startsWith('http')) ? (
             <img src={ai.avatar} alt={ai.name} className="w-20 h-20 rounded-full object-cover" />
           ) : (
             <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${
               darkMode ? 'bg-red-500/20' : 'bg-tafara-teal/20'
             }`}>
-              {ai.avatar}
+              {ai.avatar || '🤖'}
             </div>
           )}
         </div>
