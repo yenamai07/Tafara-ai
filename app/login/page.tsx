@@ -10,6 +10,8 @@ export default function LoginPage() {
   const [darkMode, setDarkMode] = useState(false)
   const [showCreateAccount, setShowCreateAccount] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const [loginInput, setLoginInput] = useState('')
   const [password, setPassword] = useState('')
@@ -61,9 +63,15 @@ export default function LoginPage() {
     localStorage.setItem('tafara-darkmode-global', String(newMode))
   }
 
+  const clearMessages = () => {
+    setError('')
+    setSuccess('')
+  }
+
   const handleLogin = async () => {
+    clearMessages()
     if (!loginInput || !password) {
-      alert('Please enter username/email and password')
+      setError('Please enter username/email and password')
       return
     }
 
@@ -92,23 +100,21 @@ export default function LoginPage() {
         email = profile?.email || `${username}@tafara.ai`
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
-      if (error) {
-        // Give a helpful message specifically for unverified emails
-        if (error.message.toLowerCase().includes('email not confirmed')) {
-          alert('Please check your email and click the verification link before logging in.')
+      if (signInError) {
+        if (signInError.message.toLowerCase().includes('email not confirmed')) {
+          setError('Please check your email and click the verification link before logging in.')
         } else {
-          alert('Invalid username/email or password')
+          setError('Invalid username/email or password')
         }
         setLoading(false)
         return
       }
 
       if (data.session) {
-        // Double-check email is verified before letting them in
         if (!data.session.user.email_confirmed_at) {
-          alert('Please verify your email before logging in. Check your inbox for a verification link.')
+          setError('Please verify your email before logging in. Check your inbox for a verification link.')
           await supabase.auth.signOut()
           setLoading(false)
           return
@@ -117,39 +123,31 @@ export default function LoginPage() {
         await restoreSessionData(data.session)
         router.push('/hub')
       }
-    } catch (error) {
-      console.error('Login error:', error)
-      alert('Something went wrong, please try again')
+    } catch (err) {
+      console.error('Login error:', err)
+      setError('Something went wrong, please try again')
     } finally {
       setLoading(false)
     }
   }
 
+  const validateCreateAccount = () => {
+    if (!createUsername.trim()) { setError('Username is required'); return false }
+    if (createUsername.length < 3) { setError('Username must be at least 3 characters'); return false }
+    if (!createEmail.includes('@')) { setError('Invalid email address'); return false }
+    if (createPassword.length < 6) { setError('Password must be at least 6 characters'); return false }
+    if (createPassword !== createPasswordConfirm) { setError('Passwords do not match'); return false }
+    if (!createApiKey.startsWith('sk-or-')) { setError('Invalid OpenRouter API key — must start with sk-or-'); return false }
+    return true
+  }
+
   const handleCreateAccount = async () => {
-    if (!createUsername || !createEmail || !createPassword || !createApiKey) {
-      alert('Please fill in all fields')
-      return
-    }
-
-    if (createPassword !== createPasswordConfirm) {
-      alert('Passwords do not match')
-      return
-    }
-
-    if (createPassword.length < 6) {
-      alert('Password must be at least 6 characters')
-      return
-    }
-
-    if (!createApiKey.startsWith('sk-or-')) {
-      alert('Invalid OpenRouter API key format - must start with sk-or-')
-      return
-    }
+    clearMessages()
+    if (!validateCreateAccount()) return
 
     setLoading(true)
 
     try {
-      // Check username isn't taken
       const { data: existingUsername } = await supabase
         .from('user_profiles')
         .select('username')
@@ -157,24 +155,23 @@ export default function LoginPage() {
         .single()
 
       if (existingUsername) {
-        alert('Username already taken')
+        setError('Username already taken')
         setLoading(false)
         return
       }
 
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: createEmail,
         password: createPassword,
       })
 
-      if (error) {
-        alert(error.message)
+      if (signUpError) {
+        setError(signUpError.message)
         setLoading(false)
         return
       }
 
       if (data.user) {
-        // Save profile — if this fails the user is stuck, so handle it
         const { error: profileError } = await supabase.from('user_profiles').insert([{
           id: data.user.id,
           username: createUsername,
@@ -185,14 +182,13 @@ export default function LoginPage() {
 
         if (profileError) {
           console.error('Profile insert error:', profileError)
-          // Clean up the auth account so they can try again
           await supabase.auth.signOut()
-          alert('Something went wrong saving your profile. Please try signing up again.')
+          setError('Something went wrong saving your profile. Please try signing up again.')
           setLoading(false)
           return
         }
 
-        alert('Account created! Please check your email and click the verification link, then come back and log in.')
+        setSuccess('Account created! Please check your email and click the verification link, then come back and log in.')
         setShowCreateAccount(false)
         setCreateUsername('')
         setCreateEmail('')
@@ -200,9 +196,9 @@ export default function LoginPage() {
         setCreatePasswordConfirm('')
         setCreateApiKey('')
       }
-    } catch (error) {
-      console.error('Create account error:', error)
-      alert('Something went wrong, please try again')
+    } catch (err) {
+      console.error('Create account error:', err)
+      setError('Something went wrong, please try again')
     } finally {
       setLoading(false)
     }
@@ -216,12 +212,27 @@ export default function LoginPage() {
       : 'bg-tafara-dark/50 border-2 border-tafara-teal/30 text-white focus:border-tafara-teal'
   }`
 
+  const MessageBanner = () => (
+    <>
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 p-3 rounded-lg bg-green-500/20 border border-green-500 text-green-300 text-sm">
+          {success}
+        </div>
+      )}
+    </>
+  )
+
   if (showCreateAccount) {
     return (
       <div className={`min-h-screen flex items-center justify-center p-6 ${dm ? 'bg-gradient-to-br from-black via-gray-900 to-black' : ''}`}>
         <div className={`max-w-md w-full backdrop-blur-sm rounded-xl p-8 ${dm ? 'bg-gray-900/50 border border-red-500/30' : 'bg-tafara-blue/30 border border-tafara-teal/30'}`}>
           <div className="flex justify-between items-center mb-6">
-            <button onClick={() => setShowCreateAccount(false)} className={dm ? 'text-red-500 hover:text-red-400' : 'text-tafara-cyan hover:text-tafara-teal'}>
+            <button onClick={() => { setShowCreateAccount(false); clearMessages() }} className={dm ? 'text-red-500 hover:text-red-400' : 'text-tafara-cyan hover:text-tafara-teal'}>
               ← Back to Login
             </button>
             <button onClick={toggleDarkMode} className="text-2xl">{dm ? '🌙' : '☀️'}</button>
@@ -229,15 +240,17 @@ export default function LoginPage() {
 
           <h1 className={`text-3xl font-bold mb-6 ${dm ? 'text-red-500' : 'text-tafara-cyan'}`}>Create Account</h1>
 
+          <MessageBanner />
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
-              <input type="text" value={createUsername} onChange={(e) => setCreateUsername(e.target.value)} className={inputClass} placeholder="Choose a username" />
+              <input type="text" value={createUsername} onChange={(e) => setCreateUsername(e.target.value)} className={inputClass} placeholder="Choose a username (min 3 characters)" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
               <input type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} className={inputClass} placeholder="your@email.com" />
-              <p className="text-xs text-gray-400 mt-1">Used for login and account recovery</p>
+              <p className="text-xs text-gray-400 mt-1">A verification email will be sent here</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
@@ -289,6 +302,8 @@ export default function LoginPage() {
           <p className="text-gray-400 mt-2">Login to access your AI assistants</p>
         </div>
 
+        <MessageBanner />
+
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Username or Email</label>
@@ -332,7 +347,7 @@ export default function LoginPage() {
           </div>
 
           <button
-            onClick={() => setShowCreateAccount(true)}
+            onClick={() => { setShowCreateAccount(true); clearMessages() }}
             className={`w-full py-3 rounded-lg font-semibold border-2 transition-all ${dm ? 'border-red-500 text-red-400 hover:bg-red-500/10' : 'border-tafara-teal text-tafara-cyan hover:bg-tafara-teal/10'}`}
           >
             Create Account
