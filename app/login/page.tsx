@@ -26,7 +26,6 @@ export default function LoginPage() {
     const savedDarkMode = localStorage.getItem('tafara-darkmode-global')
     if (savedDarkMode) setDarkMode(savedDarkMode === 'true')
 
-    // Only redirect if session is verified
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user?.email_confirmed_at) {
         await restoreSessionData(session)
@@ -80,24 +79,16 @@ export default function LoginPage() {
     try {
       const input = loginInput.trim()
       let email = ''
-      let username = ''
 
       if (input.includes('@')) {
         email = input
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('username')
-          .eq('email', email)
-          .single()
-        username = profile?.username || email.split('@')[0]
       } else {
-        username = input
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('email')
-          .eq('username', username)
+          .eq('username', input)
           .single()
-        email = profile?.email || `${username}@tafara.ai`
+        email = profile?.email || `${input}@tafara.ai`
       }
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
@@ -148,6 +139,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      // Check username isn't taken
       const { data: existingUsername } = await supabase
         .from('user_profiles')
         .select('username')
@@ -160,6 +152,8 @@ export default function LoginPage() {
         return
       }
 
+      // Create auth account — the database trigger will auto-create
+      // a basic profile row, then we update it with username + api_key
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: createEmail,
         password: createPassword,
@@ -172,20 +166,20 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        const { error: profileError } = await supabase.from('user_profiles').insert([{
-          id: data.user.id,
-          username: createUsername,
-          email: createEmail,
-          api_key: createApiKey,
-          is_preset_account: false
-        }])
+        // Update the profile row the trigger created with username and api_key
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .update({
+            username: createUsername,
+            api_key: createApiKey,
+          })
+          .eq('id', data.user.id)
 
         if (profileError) {
-          console.error('Profile insert error:', profileError)
-          await supabase.auth.signOut()
-          setError('Something went wrong saving your profile. Please try signing up again.')
-          setLoading(false)
-          return
+          console.error('Profile update error:', profileError)
+          // Don't block signup — trigger may have been delayed,
+          // user can still verify and log in
+          console.warn('Profile update failed but account was created')
         }
 
         setSuccess('Account created! Please check your email and click the verification link, then come back and log in.')
